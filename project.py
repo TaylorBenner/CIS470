@@ -2,7 +2,7 @@ import pygame
 import random
 from pygame.locals import *
 
-POP_SIZE 	  = 15
+POP_SIZE 	  = 50
 WIDTH  		  = 700
 HEIGHT 		  = 700
 
@@ -48,17 +48,7 @@ class main:
     		elif member.direction == "right":
     			member.x += member.speed
 
-    		if member.x > self.display.get_width():
-    			member.x = 0
-
-    		if member.y > self.display.get_height():
-    			member.y = 0
-
-    		if member.x < 0:
-    			member.x = self.display.get_width()
-
-    		if member.y < 0:
-    			member.y = self.display.get_height()
+    		member.check_bounds()
 
         pass
 
@@ -120,12 +110,23 @@ class member:
 		self.size 	= 10
 		self.x 		= random.randint( self.size, (WIDTH - self.size))
 		self.y 		= random.randint( self.size, (HEIGHT - self.size))
-		self.color 	= (80, 80, 80)
+		self.color 	= (random.randint(0,255), random.randint(0,255), random.randint(0,255))
 		self.name 	= "Creature #" + str(num)
 		self.speed  = 1
+
+	def check_bounds( self ):
+		
+		if self.x > WIDTH:
+			self.x = 0
+		elif self.x < 0:
+			self.x = WIDTH
+
+		if self.y > HEIGHT:
+			self.y = 0
+		elif self.y < 0:
+			self.y = HEIGHT
 
  
 if __name__ == "__main__" :
     main_window = main()
     main_window.execute()
-    
