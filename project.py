@@ -2,7 +2,7 @@ import pygame
 import random
 from pygame.locals import *
 
-POP_SIZE 	  = 10
+POP_SIZE 	  = 15
 WIDTH  		  = 700
 HEIGHT 		  = 700
 
@@ -37,8 +37,6 @@ class main:
 
     # update loop
     def update( self ):
-    	# self.population.generation += 1
-
     	for member in self.population.members:
 
     		if member.direction == "up":
@@ -56,9 +54,8 @@ class main:
     		if member.y > self.display.get_height():
     			member.y = 0
 
-			if member.x < 0:
-				print "less than 0"
-				member.x = self.display.get_width()
+    		if member.x < 0:
+    			member.x = self.display.get_width()
 
     		if member.y < 0:
     			member.y = self.display.get_height()
@@ -107,7 +104,7 @@ class population:
 		self.members = []
 
 		for i in range( POP_SIZE ):
-			new_member = member()
+			new_member = member( i+1 )
 			self.members.append( new_member )
 
 	def show_members( self ):
@@ -117,14 +114,14 @@ class population:
 
 class member:
 
-	def __init__( self ):
+	def __init__( self, num ):
 
 		self.direction = random.choice(["up","down","left","right"])
 		self.size 	= 10
 		self.x 		= random.randint( self.size, (WIDTH - self.size))
 		self.y 		= random.randint( self.size, (HEIGHT - self.size))
 		self.color 	= (80, 80, 80)
-		self.name 	= "Creature"
+		self.name 	= "Creature #" + str(num)
 		self.speed  = 1
 
  
