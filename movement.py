@@ -25,7 +25,8 @@ class Main:
 		self.pressed = []
 
 		self.member  = Member( 1 )
-		self.food 	 = [] 
+		self.food 	 = []
+		self.toxins  = []
 
 		self.font 	 = pygame.font.SysFont("monospace", 15)
 
@@ -46,10 +47,13 @@ class Main:
 	# update loop
 	def update( self ):
 
-		# if no food exists
 		if len(self.food) == 0:
-			# add some
-			self.food.append(Food(len(self.food) + 1))
+			for i in range(0,10):
+				self.food.append(Food(len(self.food) + 1))
+
+		if len(self.toxins) == 0:
+			for i in range(0,10):
+				self.toxins.append(Toxin(len(self.toxins) + 1))
 
 		if K_UP in self.pressed:
 			self.member.move()
@@ -67,6 +71,11 @@ class Main:
 				self.member.food_eaten += 1
 				self.food.remove(food)
 
+		for toxin in self.toxins:
+			if toxin.rect.colliderect(self.member.rect):
+				self.member.damage_taken += 1
+				self.toxins.remove(toxin)
+
 		pass
 
 	# render function
@@ -78,8 +87,14 @@ class Main:
 		for food in self.food:
 			food.draw( self.display )
 
-		score = self.font.render("Eaten: " + str(self.member.food_eaten), 1, (0,0,0))
-		self.display.blit(score, (10, 10))
+		for toxin in self.toxins:
+			toxin.draw( self.display )
+
+		food = self.font.render("Eaten: " + str(self.member.food_eaten), 1, (0,0,0))
+		self.display.blit(food, (10, 10))
+
+		damage = self.font.render("Damage: " + str(self.member.damage_taken), 1, (0,0,0))
+		self.display.blit(damage, (10, 30))
 
 		pygame.display.flip()
 		pass
@@ -119,6 +134,7 @@ class Member:
 
 		self.rect = pygame.Rect((self.x-self.radius, self.y-self.radius),(self.radius*2, self.radius*2))
 		self.food_eaten = 0
+		self.damage_taken = 0
 
 		self.debug = False
 
@@ -156,10 +172,28 @@ class Food:
 		self.x = random.randint(self.size, (WIDTH  - self.size))
 		self.y = random.randint(self.size, (HEIGHT - self.size))
 
-		self.color  = (100,170,170)
+		self.color  = (100,200,100)
 		self.stroke = (0,0,0)
 
 		self.name   = "Food Pellet #" + str(num)
+		self.rect   = pygame.Rect((self.x, self.y), (self.size, self.size)) 
+
+	def draw( self, display ):
+		pygame.draw.rect( display, self.color, self.rect, 0)
+		pygame.draw.rect( display, self.stroke, self.rect, 1)
+
+
+class Toxin:
+	def __init__( self, num ):
+
+		self.size = 10		
+		self.x = random.randint(self.size, (WIDTH  - self.size))
+		self.y = random.randint(self.size, (HEIGHT - self.size))
+
+		self.color  = (200,100,100)
+		self.stroke = (0,0,0)
+
+		self.name   = "Toxin Pellet #" + str(num)
 		self.rect   = pygame.Rect((self.x, self.y), (self.size, self.size)) 
 
 	def draw( self, display ):
