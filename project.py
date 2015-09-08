@@ -2,90 +2,96 @@ import pygame
 import random
 from pygame.locals import *
 
-POP_SIZE 	  = 50
+POP_SIZE 	  = 1
 WIDTH  		  = 700
 HEIGHT 		  = 700
 
 class main:
 
 	#init main
-    def __init__( self ):
+	def __init__( self ):
 
-        self.running 	    = True
-        self.display 		= None
-        self.size = self.width, self.height = WIDTH, HEIGHT
+		self.running 	    = True
+		self.display 		= None
+		self.size = self.width, self.height = WIDTH, HEIGHT
  
-    # init function
-    def init( self ):
+	# init function
+	def init( self ):
 
-        pygame.init()
-        self.display = pygame.display.set_mode(self.size, pygame.HWSURFACE | pygame.DOUBLEBUF)
-        self.display.fill((255,255,255))
-        pygame.display.flip()
+		pygame.init()
+		self.display = pygame.display.set_mode(self.size, pygame.HWSURFACE | pygame.DOUBLEBUF)
+		self.display.fill((255,255,255))
+		pygame.display.flip()
 
-        self.running = True
+		self.running = True
+		self.pressed = []
 
-        self.population = population()
-        self.population.show_members()
+		self.population = population()
+		self.population.show_members()
 
  
-    # events handler
-    def events( self, event ):
+	# events handler
+	def events( self, event ):
+		if event.type == pygame.QUIT:
+			self.running = False
 
-        if event.type == pygame.QUIT:
-            self.running = False
+		if event.type == KEYDOWN:
+			if event.key not in self.pressed:
+				self.pressed.append( event.key )
 
-    # update loop
-    def update( self ):
-    	for member in self.population.members:
+		if event.type == KEYUP:
+			if event.key in self.pressed:
+				self.pressed.remove( event.key )
 
-    		if member.direction == "up":
-    			member.y -= member.speed
-    		elif member.direction == "down":
-    			member.y += member.speed
-    		elif member.direction == "left":
-    			member.x -= member.speed
-    		elif member.direction == "right":
-    			member.x += member.speed
+	# update loop
+	def update( self ):
+		for member in self.population.members:
 
-    		member.check_bounds()
+			member.left_track 	= 0
+			member.right_track 	= 0
 
-        pass
+			if K_LEFT in self.pressed:
+				member.left_track 	= 0
+				member.right_track 	= 1
 
-    # render function
-    def render( self ):
+			if K_RIGHT in self.pressed:
+				member.left_track 	= 1
+				member.right_track 	= 0
 
-    	self.display.fill((255,255,255))
-    	for member in self.population.members:
-    		pygame.draw.circle( 
-    			self.display, 
-    			member.color, 
-    			(member.x, member.y),
-    			member.size,
-    			0)
+			member.update_rotation()
+			member.check_bounds()
 
-    	pygame.display.flip()
-        pass
+		pass
 
-    # closure function
-    def cleanup( self ):
+	# render function
+	def render( self ):
 
-        pygame.quit()
+		self.display.fill((255,255,255))
+		for member in self.population.members:
+			member.draw_member( self.display )
+
+		pygame.display.flip()
+		pass
+
+	# closure function
+	def cleanup( self ):
+
+		pygame.quit()
  
- 	# main loop
-    def execute( self ):
+	# main loop
+	def execute( self ):
 
-        if self.init() == False:
-            self.running = False
+		if self.init() == False:
+			self.running = False
  
-        while( self.running ):
-            for event in pygame.event.get():
-                self.events(event)
+		while( self.running ):
+			for event in pygame.event.get():
+				self.events(event)
 
-            self.update()
-            self.render()
+			self.update()
+			self.render()
 
-        self.cleanup()
+		self.cleanup()
 
 class population:
 
@@ -99,23 +105,29 @@ class population:
 
 	def show_members( self ):
 		for member in self.members:
-			print "%s %i %i %s" % (member.name, member.x, member.y, member.direction)
+			print "%s %i %i" % (member.name, member.x, member.y)
 
 
 class member:
 
 	def __init__( self, num ):
-
-		self.direction = random.choice(["up","down","left","right"])
 		self.size 	= 10
 		self.x 		= random.randint( self.size, (WIDTH - self.size))
 		self.y 		= random.randint( self.size, (HEIGHT - self.size))
-		self.color 	= (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+		# self.color 	= (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+		self.color  = (160,160,160)
 		self.name 	= "Creature #" + str(num)
-		self.speed  = 1
+
+		self.left_speed  = 1
+		self.right_speed  = 1
+
+		self.left_track = 0
+		self.right_track = 0
+
+		self.rotational_velocity = 0.0
+		self.rotational_radian = 0.0
 
 	def check_bounds( self ):
-		
 		if self.x > WIDTH:
 			self.x = 0
 		elif self.x < 0:
@@ -126,7 +138,36 @@ class member:
 		elif self.y < 0:
 			self.y = HEIGHT
 
+	def update_rotation( self ):
+		self.rotational_velocity = (self.left_track + self.right_track)
+		self.rotational_radian += self.rotational_velocity
+		
+		if self.rotational_radian > 360.0:
+			self.rotational_radian = 0
+		elif self.rotational_radian < 0:
+			self.rotational_radian = 360
+
+
+		print self.rotational_radian
+
+	def draw_member( self, display ):
+		# draw main body to display
+		pygame.draw.circle( 
+			display, 
+			self.color, 
+			(self.x, self.y),
+			self.size,
+			0)
+
+		# draw line indicating direction
+		# pygame.draw.line(
+		# 	display,
+		# 	(0,0,0),
+		# 	(self.x, self.y),
+		# 	(self.x, (self.y - self.size)),
+		# 	(self.size / 10))
+
  
 if __name__ == "__main__" :
-    main_window = main()
-    main_window.execute()
+	main_window = main()
+	main_window.execute()
