@@ -2,7 +2,7 @@ import pygame
 import random
 from pygame.locals import *
 
-POP_SIZE 	  = 1
+POP_SIZE 	  = 10
 WIDTH  		  = 700
 HEIGHT 		  = 700
 
@@ -35,37 +35,28 @@ class main:
 		if event.type == pygame.QUIT:
 			self.running = False
 
-		if event.type == KEYDOWN:
-			if event.key not in self.pressed:
-				self.pressed.append( event.key )
-
-		if event.type == KEYUP:
-			if event.key in self.pressed:
-				self.pressed.remove( event.key )
-
 	# update loop
 	def update( self ):
 		for member in self.population.members:
 
-			member.left_track 	= 0
-			member.right_track 	= 0
+			if member.direction == "up":
+				member.y -= member.speed
 
-			if K_LEFT in self.pressed:
-				member.left_track 	= 0
-				member.right_track 	= 1
+			elif member.direction == "down":
+				member.y += member.speed
 
-			if K_RIGHT in self.pressed:
-				member.left_track 	= 1
-				member.right_track 	= 0
+			elif member.direction == "left":
+				member.x -= member.speed
 
-			member.update_rotation()
+			elif member.direction == "right":
+				member.x += member.speed
+
 			member.check_bounds()
 
 		pass
 
 	# render function
 	def render( self ):
-
 		self.display.fill((255,255,255))
 		for member in self.population.members:
 			member.draw_member( self.display )
@@ -80,7 +71,6 @@ class main:
  
 	# main loop
 	def execute( self ):
-
 		if self.init() == False:
 			self.running = False
  
@@ -114,18 +104,10 @@ class member:
 		self.size 	= 10
 		self.x 		= random.randint( self.size, (WIDTH - self.size))
 		self.y 		= random.randint( self.size, (HEIGHT - self.size))
-		# self.color 	= (random.randint(0,255), random.randint(0,255), random.randint(0,255))
-		self.color  = (160,160,160)
+		self.color 	= (random.randint(0,255), random.randint(0,255), random.randint(0,255))
 		self.name 	= "Creature #" + str(num)
-
-		self.left_speed  = 1
-		self.right_speed  = 1
-
-		self.left_track = 0
-		self.right_track = 0
-
-		self.rotational_velocity = 0.0
-		self.rotational_radian = 0.0
+		self.direction = random.choice(["up","down","left","right"])
+		self.speed = random.randint(1,2)
 
 	def check_bounds( self ):
 		if self.x > WIDTH:
@@ -138,18 +120,6 @@ class member:
 		elif self.y < 0:
 			self.y = HEIGHT
 
-	def update_rotation( self ):
-		self.rotational_velocity = (self.left_track + self.right_track)
-		self.rotational_radian += self.rotational_velocity
-		
-		if self.rotational_radian > 360.0:
-			self.rotational_radian = 0
-		elif self.rotational_radian < 0:
-			self.rotational_radian = 360
-
-
-		print self.rotational_radian
-
 	def draw_member( self, display ):
 		# draw main body to display
 		pygame.draw.circle( 
@@ -158,15 +128,6 @@ class member:
 			(self.x, self.y),
 			self.size,
 			0)
-
-		# draw line indicating direction
-		# pygame.draw.line(
-		# 	display,
-		# 	(0,0,0),
-		# 	(self.x, self.y),
-		# 	(self.x, (self.y - self.size)),
-		# 	(self.size / 10))
-
  
 if __name__ == "__main__" :
 	main_window = main()
