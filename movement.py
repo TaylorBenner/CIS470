@@ -1,5 +1,6 @@
 import pygame
 import random
+import math
 from pygame.locals import *
 
 WIDTH  = 700
@@ -43,10 +44,13 @@ class Main:
 	def update( self ):
 
 		if K_UP in self.pressed:
-			self.member.y -= 1
+			self.member.move_forward()
 
-		if K_DOWN in self.pressed:
-			self.member.y += 1
+		if K_LEFT in self.pressed:
+			self.member.angle += .01
+
+		if K_RIGHT in self.pressed:
+			self.member.angle -= .01
 
 		self.member.check_bounds()
 
@@ -82,10 +86,12 @@ class Member:
 
 	def __init__( self, num ):
 		self.radius	= 20
-		self.x 		= (WIDTH / 2) - self.radius
-		self.y 		= (HEIGHT / 2) - self.radius
-		self.color  = (0,0,0)
+		self.x 		= 50
+		self.y 		= 50
+		self.color  = (random.randint(100,255),random.randint(100,255),random.randint(100,255))
 		self.name 	= "Creature #" + str(num)
+		self.speed  = 1
+		self.angle  = 0.45
 
 	def check_bounds( self ):
 		if self.x > WIDTH:
@@ -98,20 +104,34 @@ class Member:
 		elif self.y < 0:
 			self.y = HEIGHT
 
-	def draw( self, display ):
-		pygame.draw.circle( 
-			display, 
-			self.color, 
-			(self.x, self.y),
-			self.radius,
-			1)
+	def move_forward( self ):
+		self.x += deltaX( self.angle, self.speed )
+		self.y += deltaY( self.angle, self.speed )
 
-		pygame.draw.line(
-			display,
-			(0,0,0),
-			(self.x, self.y),
-			(self.x, (self.y - self.radius)),
-			1)
+	def draw( self, display ):
+
+		stroke = (0,0,0)
+
+		# draw main body
+		pygame.draw.circle( display, self.color, (toFixed(self.x), toFixed(self.y)), self.radius, 0)
+
+		#draw outline
+		pygame.draw.circle( display, stroke, (toFixed(self.x), toFixed(self.y)), self.radius, 1)
+
+		# draw directional line
+		dx = self.x + deltaX( self.angle, self.radius )
+		dy = self.y + deltaY( self.angle, self.radius )
+		pygame.draw.line( display, stroke, (toFixed(self.x), toFixed(self.y)), (toFixed(dx), toFixed(dy)), 1)
+
+
+def toFixed( number ):
+	return int(round(number))
+
+def deltaX( angle, number ):
+	return math.sin(angle) * number
+
+def deltaY( angle, number ):
+	return math.cos(angle) * number
 
  
 if __name__ == "__main__" :
