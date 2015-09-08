@@ -58,11 +58,14 @@ class Main:
 		if K_UP in self.pressed:
 			self.member.move()
 
+		if K_DOWN in self.pressed:
+			self.member.move( -1 )
+
 		if K_LEFT in self.pressed:
-			self.member.angle += .005
+			self.member.angle += self.member.rotation_speed
 
 		if K_RIGHT in self.pressed:
-			self.member.angle -= .005
+			self.member.angle -= self.member.rotation_speed
 
 		self.member.check_bounds()
 
@@ -129,7 +132,8 @@ class Member:
 		self.stroke = (0,0,0)
 
 		self.name 	= "Creature #" + str(num)
-		self.speed  = 1
+		self.speed  = .5
+		self.rotation_speed = 0.01
 		self.angle  = 0.45
 
 		self.rect = pygame.Rect((self.x-self.radius, self.y-self.radius),(self.radius*2, self.radius*2))
@@ -149,9 +153,9 @@ class Member:
 		elif self.y < 0:
 			self.y = HEIGHT
 
-	def move( self ):
-		self.x += deltaX( self.angle, self.speed )
-		self.y += deltaY( self.angle, self.speed )
+	def move( self, mod = 1 ):
+		self.x += mod * deltaX( self.angle, self.speed )
+		self.y += mod * deltaY( self.angle, self.speed )
 		self.rect = pygame.Rect((self.x-self.radius, self.y-self.radius),(self.radius*2, self.radius*2))
 
 	def draw( self, display ):
