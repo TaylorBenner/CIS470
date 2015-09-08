@@ -27,6 +27,8 @@ class Main:
 		self.member  = Member( 1 )
 		self.food 	 = [] 
 
+		self.font 	 = pygame.font.SysFont("monospace", 15)
+
  
 	# events handler
 	def events( self, event ):
@@ -50,15 +52,20 @@ class Main:
 			self.food.append(Food(len(self.food) + 1))
 
 		if K_UP in self.pressed:
-			self.member.move_forward()
+			self.member.move()
 
 		if K_LEFT in self.pressed:
-			self.member.angle += .01
+			self.member.angle += .005
 
 		if K_RIGHT in self.pressed:
-			self.member.angle -= .01
+			self.member.angle -= .005
 
 		self.member.check_bounds()
+
+		for food in self.food:
+			if food.rect.colliderect(self.member.rect):
+				self.member.food_eaten += 1
+				self.food.remove(food)
 
 		pass
 
@@ -70,6 +77,9 @@ class Main:
 
 		for food in self.food:
 			food.draw( self.display )
+
+		score = self.font.render("Eaten: " + str(self.member.food_eaten), 1, (0,0,0))
+		self.display.blit(score, (10, 10))
 
 		pygame.display.flip()
 		pass
@@ -94,7 +104,6 @@ class Main:
 		self.cleanup()
 
 class Member:
-
 	def __init__( self, num ):
 
 		self.radius	= 20
@@ -108,6 +117,11 @@ class Member:
 		self.speed  = 1
 		self.angle  = 0.45
 
+		self.rect = pygame.Rect((self.x-self.radius, self.y-self.radius),(self.radius*2, self.radius*2))
+		self.food_eaten = 0
+
+		self.debug = False
+
 	def check_bounds( self ):
 		if self.x > WIDTH:
 			self.x = 0
@@ -119,9 +133,10 @@ class Member:
 		elif self.y < 0:
 			self.y = HEIGHT
 
-	def move_forward( self ):
+	def move( self ):
 		self.x += deltaX( self.angle, self.speed )
 		self.y += deltaY( self.angle, self.speed )
+		self.rect = pygame.Rect((self.x-self.radius, self.y-self.radius),(self.radius*2, self.radius*2))
 
 	def draw( self, display ):
 		pygame.draw.circle( display, self.color, (toFixed(self.x), toFixed(self.y)), self.radius, 0)
@@ -130,8 +145,11 @@ class Member:
 		dy = self.y + deltaY( self.angle, self.radius )
 		pygame.draw.line( display, self.stroke, (toFixed(self.x), toFixed(self.y)), (toFixed(dx), toFixed(dy)), 1)
 
-class Food:
+		if self.debug:
+			pygame.draw.rect(display, (200,100,100), self.rect, 1)
 
+
+class Food:
 	def __init__( self, num ):
 
 		self.size = 10		
@@ -142,13 +160,11 @@ class Food:
 		self.stroke = (0,0,0)
 
 		self.name   = "Food Pellet #" + str(num)
+		self.rect   = pygame.Rect((self.x, self.y), (self.size, self.size)) 
 
 	def draw( self, display ):
-
-		rect = pygame.Rect((self.x, self.y), (self.size, self.size)) 
-
-		pygame.draw.rect( display, self.color, rect, 0)
-		pygame.draw.rect( display, self.stroke, rect, 1)
+		pygame.draw.rect( display, self.color, self.rect, 0)
+		pygame.draw.rect( display, self.stroke, self.rect, 1)
 
 
 def toFixed( number ):
