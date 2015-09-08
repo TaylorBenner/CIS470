@@ -85,10 +85,14 @@ class Main:
 class Member:
 
 	def __init__( self, num ):
+
 		self.radius	= 20
-		self.x 		= 50
-		self.y 		= 50
+		self.x 		= random.randint( self.radius, (WIDTH - self.radius))
+		self.y 		= random.randint( self.radius, (HEIGHT - self.radius))
+
 		self.color  = (random.randint(100,255),random.randint(100,255),random.randint(100,255))
+		self.stroke = (0,0,0)
+
 		self.name 	= "Creature #" + str(num)
 		self.speed  = 1
 		self.angle  = 0.45
@@ -109,19 +113,11 @@ class Member:
 		self.y += deltaY( self.angle, self.speed )
 
 	def draw( self, display ):
-
-		stroke = (0,0,0)
-
-		# draw main body
 		pygame.draw.circle( display, self.color, (toFixed(self.x), toFixed(self.y)), self.radius, 0)
-
-		#draw outline
-		pygame.draw.circle( display, stroke, (toFixed(self.x), toFixed(self.y)), self.radius, 1)
-
-		# draw directional line
+		pygame.draw.circle( display, self.stroke, (toFixed(self.x), toFixed(self.y)), self.radius, 1)
 		dx = self.x + deltaX( self.angle, self.radius )
 		dy = self.y + deltaY( self.angle, self.radius )
-		pygame.draw.line( display, stroke, (toFixed(self.x), toFixed(self.y)), (toFixed(dx), toFixed(dy)), 1)
+		pygame.draw.line( display, self.stroke, (toFixed(self.x), toFixed(self.y)), (toFixed(dx), toFixed(dy)), 1)
 
 
 def toFixed( number ):
