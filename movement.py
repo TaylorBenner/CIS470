@@ -25,6 +25,7 @@ class Main:
 		self.pressed = []
 
 		self.member  = Member( 1 )
+		self.food 	 = [] 
 
  
 	# events handler
@@ -43,6 +44,11 @@ class Main:
 	# update loop
 	def update( self ):
 
+		# if no food exists
+		if len(self.food) == 0:
+			# add some
+			self.food.append(Food(len(self.food) + 1))
+
 		if K_UP in self.pressed:
 			self.member.move_forward()
 
@@ -58,8 +64,13 @@ class Main:
 
 	# render function
 	def render( self ):
+
 		self.display.fill((255,255,255))
 		self.member.draw( self.display )
+
+		for food in self.food:
+			food.draw( self.display )
+
 		pygame.display.flip()
 		pass
 
@@ -87,7 +98,7 @@ class Member:
 	def __init__( self, num ):
 
 		self.radius	= 20
-		self.x 		= random.randint( self.radius, (WIDTH - self.radius))
+		self.x 		= random.randint( self.radius, (WIDTH  - self.radius))
 		self.y 		= random.randint( self.radius, (HEIGHT - self.radius))
 
 		self.color  = (random.randint(100,255),random.randint(100,255),random.randint(100,255))
@@ -118,6 +129,26 @@ class Member:
 		dx = self.x + deltaX( self.angle, self.radius )
 		dy = self.y + deltaY( self.angle, self.radius )
 		pygame.draw.line( display, self.stroke, (toFixed(self.x), toFixed(self.y)), (toFixed(dx), toFixed(dy)), 1)
+
+class Food:
+
+	def __init__( self, num ):
+
+		self.size = 10		
+		self.x = random.randint(self.size, (WIDTH  - self.size))
+		self.y = random.randint(self.size, (HEIGHT - self.size))
+
+		self.color  = (100,170,170)
+		self.stroke = (0,0,0)
+
+		self.name   = "Food Pellet #" + str(num)
+
+	def draw( self, display ):
+
+		rect = pygame.Rect((self.x, self.y), (self.size, self.size)) 
+
+		pygame.draw.rect( display, self.color, rect, 0)
+		pygame.draw.rect( display, self.stroke, rect, 1)
 
 
 def toFixed( number ):
