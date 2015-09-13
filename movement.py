@@ -161,7 +161,7 @@ class Member:
 	def __init__( self, num ):
 
 		# initial position, size, and x,y pos
-		self.radius	= 10
+		self.radius	= 20
 		self.x = (HEIGHT / 2) - (self.radius / 2)
 		self.y = (WIDTH / 2) - (self.radius / 2)
 		# self.x 		= random.randint( self.radius, (WIDTH  - self.radius))
