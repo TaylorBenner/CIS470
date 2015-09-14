@@ -80,7 +80,7 @@ class Member:
 		self.x 		= (WIDTH/2) - (self.radius/2)
 		self.y 		= (HEIGHT/2) - (self.radius/2)
 
-		self.angle       = 0.0
+		self.angle       = 45
 		self.left_track  = 0.0
 		self.right_track = 0.0
 		self.speed 		 = 0.0
@@ -123,16 +123,16 @@ class Member:
 
 		pygame.draw.line( display, self.stroke, (toFixed(self.x), toFixed(self.y)), (toFixed(dx), toFixed(dy)), 1)
 
-		focal_length  = (self.radius * 2) * 6
-		field_of_view = 90
+		focal_length  = (self.radius * 2) * 7
+		field_of_view = focal_length / 4
 		vision 		  = Polygon([(self.x, self.y), (110, 0), (110, 70)])
 
-		pygame.draw.rect(
-			display,
-			self.stroke,
-			vision,
-			1
-		)
+		radians = self.angle * (math.pi / 180)
+
+		triangle = Polygon([(self.x, self.y), ((self.x - field_of_view) , self.y + focal_length), (self.x + field_of_view, self.y + focal_length)])
+		triangle = triangle.rotoedges(radians)
+
+		pygame.draw.polygon(display, (255, 0, 0), triangle.P, 1)
 
 		if DEBUG:
 			pygame.draw.rect(display, (200,100,100), self.rect, 1)
