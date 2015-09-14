@@ -1,134 +1,252 @@
+import random, math, sys
 import pygame
-import random
 from pygame.locals import *
+from pylygon import Polygon
 
-POP_SIZE 	  = 10
-WIDTH  		  = 700
-HEIGHT 		  = 700
+from pybrain.tools.shortcuts import buildNetwork
+from pybrain.structure import FeedForwardNetwork
+from pybrain.structure import TanhLayer, LinearLayer, SigmoidLayer
+from pybrain.structure import FullConnection
 
-class main:
+WIDTH  = 700
+HEIGHT = 700
+DEBUG  = False
 
-	#init main
-	def __init__( self ):
+class Main:
 
-		self.running 	    = True
-		self.display 		= None
-		self.size = self.width, self.height = WIDTH, HEIGHT
+    #init main
+    def __init__( self ):
+        self.running        = True
+        self.display        = None
+        self.size = self.width, self.height = WIDTH, HEIGHT
  
-	# init function
-	def init( self ):
+    # init function
+    def init( self ):
+        pygame.init()
+        self.display = pygame.display.set_mode(self.size, pygame.HWSURFACE | pygame.DOUBLEBUF)
+        self.display.fill((255,255,255))
+        pygame.display.flip()
 
-		pygame.init()
-		self.display = pygame.display.set_mode(self.size, pygame.HWSURFACE | pygame.DOUBLEBUF)
-		self.display.fill((255,255,255))
-		pygame.display.flip()
+        self.running = True
+        self.population = Population()
+        self.food = []
 
-		self.running = True
-		self.pressed = []
-
-		self.population = population()
-		self.population.show_members()
-
+        self.clock = pygame.time.Clock()
  
-	# events handler
-	def events( self, event ):
-		if event.type == pygame.QUIT:
-			self.running = False
+    # events handler
+    def events( self, event ):
+        if event.type == pygame.QUIT:
+            self.running = False
 
-	# update loop
-	def update( self ):
-		for member in self.population.members:
+    # update loop
+    def update( self ):
 
-			if member.direction == "up":
-				member.y -= member.speed
+        if len(self.food) == 0:
+            for i in range(10):
+                self.food.append(Food(i+1))
 
-			elif member.direction == "down":
-				member.y += member.speed
+        for member in self.population.members:
+            member.left_track = .3
+            member.right_track = .9
+            member.move()
+            member.check_bounds()
+            
+            for food in self.food:
+                results = food.rect.collidepoly(member.triangle)
+                if not results is False:
+                    food.color = (100,100,255)
+                    dist = food.rect.distance(member.rect)
+                    self.obj_distance_x = dist[0]
+                    self.obj_distance_y = dist[1]
+                else:
+                    food.color  = (100,200,100)
 
-			elif member.direction == "left":
-				member.x -= member.speed
 
-			elif member.direction == "right":
-				member.x += member.speed
+        pass
 
-			member.check_bounds()
+    # render function
+    def render( self ):
+        self.display.fill((255,255,255))
 
-		pass
+        for food in self.food:
+            food.draw( self.display )
 
-	# render function
-	def render( self ):
-		self.display.fill((255,255,255))
-		for member in self.population.members:
-			member.draw_member( self.display )
+        for member in self.population.members:
+            member.draw( self.display )
 
-		pygame.display.flip()
-		pass
+        pygame.display.flip()
+        pass
 
-	# closure function
-	def cleanup( self ):
-
-		pygame.quit()
+    # closure function
+    def cleanup( self ):
+        pygame.quit()
  
-	# main loop
-	def execute( self ):
-		if self.init() == False:
-			self.running = False
+    # main loop
+    def execute( self ):
+
+        if self.init() == False:
+            self.running = False
  
-		while( self.running ):
-			for event in pygame.event.get():
-				self.events(event)
+        while( self.running ):
 
-			self.update()
-			self.render()
+            self.clock.tick(60)
 
-		self.cleanup()
+            for event in pygame.event.get():
+                self.events(event)
 
-class population:
+            self.update()
+            self.render()
 
-	def __init__( self ):
-		self.generation = 0
-		self.members = []
-
-		for i in range( POP_SIZE ):
-			new_member = member( i+1 )
-			self.members.append( new_member )
-
-	def show_members( self ):
-		for member in self.members:
-			print "%s %i %i" % (member.name, member.x, member.y)
+        self.cleanup()
 
 
-class member:
+#
+#   Poulation Class
+#
+class Population:
+    def __init__( self ):
 
-	def __init__( self, num ):
-		self.size 	= 10
-		self.x 		= random.randint( self.size, (WIDTH - self.size))
-		self.y 		= random.randint( self.size, (HEIGHT - self.size))
-		self.color 	= (random.randint(0,255), random.randint(0,255), random.randint(0,255))
-		self.name 	= "Creature #" + str(num)
-		self.direction = random.choice(["up","down","left","right"])
-		self.speed = random.randint(1,2)
+        self.population_size = 1
+        self.members = [Member( i+1 ) for i in range( self.population_size )]
 
-	def check_bounds( self ):
-		if self.x > WIDTH:
-			self.x = 0
-		elif self.x < 0:
-			self.x = WIDTH
 
-		if self.y > HEIGHT:
-			self.y = 0
-		elif self.y < 0:
-			self.y = HEIGHT
+#
+#   Member Class
+#
+class Member:
 
-	def draw_member( self, display ):
-		# draw main body to display
-		pygame.draw.circle( 
-			display, 
-			self.color, 
-			(self.x, self.y),
-			self.size,
-			0)
- 
+    def __init__( self, number ):
+
+        self.name           = "member " + str(number)
+        self.radius         = 20
+        self.color          = (random.randint(100,200), random.randint(100,200), random.randint(100,200))
+        self.stroke         = (0,0,0)
+        self.x              = (WIDTH / 2) - (self.radius / 2)
+        self.y              = (HEIGHT / 2) - (self.radius / 2)
+        self.angle          = 0.45
+        self.left_track     = 0.0
+        self.right_track    = 0.0
+        self.velocity       = 0.0
+        self.rotation_delta = 0.0
+        self.food_eaten     = 0
+        self.toxin_eaten    = 0
+
+        self.obj_distance_x = 0.0
+        self.obj_distance_y = 0.0
+
+        self.view_distance  = (self.radius * 2) * 5
+        self.view_width     = 50
+
+        shape = [2,5,2]
+        self.network = buildNetwork(shape[0], shape[1], shape[2], outclass=TanhLayer )
+
+        rect_points = [(self.x - self.radius, self.y - self.radius),
+            (self.x - self.radius, self.y + self.radius),
+            (self.x + self.radius, self.y - self.radius),
+            (self.x + self.radius, self.y + self.radius)]
+
+        self.rect           = Polygon(rect_points)
+        self.triangle       = Polygon([(self.x, self.y), (self.x + self.view_width, self.y + self.view_distance), (self.x-self.view_width, self.y+self.view_distance)])
+
+    # function that calculates new position based on angle, speed, radius, and current position
+    def move( self, mod = 1 ):
+
+
+
+        self.rotation_delta = (self.left_track - self.right_track) / self.radius
+        self.velocity       = self.left_track + self.right_track
+
+        self.angle += self.rotation_delta
+        self.x     += mod * deltaX( self.angle, self.velocity )
+        self.y     += mod * deltaY( self.angle, self.velocity )
+        
+        rect_points = [(self.x - self.radius, self.y - self.radius),
+            (self.x - self.radius, self.y + self.radius),
+            (self.x + self.radius, self.y - self.radius),
+            (self.x + self.radius, self.y + self.radius)]
+
+        self.rect = Polygon(rect_points)
+
+        dx1 = self.x - deltaX( self.angle - 10, self.view_distance )
+        dy1 = self.y - deltaY( self.angle - 10, self.view_distance )
+
+        dx2 = self.x - deltaX( self.angle + 10, self.view_distance )
+        dy2 = self.y - deltaY( self.angle + 10, self.view_distance )
+
+        self.triangle = Polygon([(self.x, self.y),(dx1, dy1 ),(dx2, dy2 )])
+
+    # function for drawing member and member's hitbox
+    def draw( self, display ):
+
+        dx = self.x + deltaX( self.angle, self.radius )
+        dy = self.y + deltaY( self.angle, self.radius )
+
+        pygame.draw.circle( display, self.color, (toFixed(self.x), toFixed(self.y)), self.radius, 0)
+        pygame.draw.circle( display, self.stroke, (toFixed(self.x), toFixed(self.y)), self.radius, 1)
+        pygame.draw.line( display, self.stroke, (toFixed(self.x), toFixed(self.y)), (toFixed(dx), toFixed(dy)), 1)
+
+
+        if DEBUG:
+            pygame.draw.polygon( display, (255,0,0), self.triangle, 1)
+            pygame.draw.polygon(display, (200,100,100), self.rect, 1)
+
+
+    # function to wrap member to opposite side of screen
+    def check_bounds( self ):
+        if self.x > WIDTH:
+            self.x = 0
+        elif self.x < 0:
+            self.x = WIDTH
+
+        if self.y > HEIGHT:
+            self.y = 0
+        elif self.y < 0:
+            self.y = HEIGHT
+
+class Food:
+    def __init__( self, num ):
+
+        self.radius = 5
+        self.x = random.randint(self.radius, (WIDTH  - self.radius))
+        self.y = random.randint(self.radius, (HEIGHT - self.radius))
+
+        self.color  = (100,200,100)
+        self.stroke = (50,100,50)
+
+        self.name   = "Food Pellet #" + str(num)
+
+        # food hitbox
+        points = [(self.x-self.radius, self.y-self.radius),
+            (self.x-self.radius, self.y+self.radius),
+            (self.x+self.radius, self.y-self.radius),
+            (self.x+self.radius, self.y+self.radius)]
+
+        self.rect = Polygon(points)
+
+    def draw( self, display ):
+        pygame.draw.circle( display, self.color, (self.x, self.y), self.radius, 0)
+        pygame.draw.circle( display, self.stroke, (self.x, self.y), self.radius, 1)
+
+        if DEBUG:
+            pygame.draw.polygon( display, (255,0,0), self.rect, 1)
+
+
+
+
+def toFixed( number ):
+    return int(round(number))
+
+def deltaX( angle, number ):
+    return math.sin(angle) * number
+
+def deltaY( angle, number ):
+    return math.cos(angle) * number
+
 if __name__ == "__main__" :
-	main_window = main()
-	main_window.execute()
+
+    args = sys.argv
+    if len(args) > 1:
+        DEBUG = args[1]
+
+    main_window = Main()
+    main_window.execute()
