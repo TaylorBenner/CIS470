@@ -7,6 +7,7 @@ from pybrain.tools.shortcuts import buildNetwork
 from pybrain.structure import FeedForwardNetwork
 from pybrain.structure import TanhLayer, LinearLayer, SigmoidLayer
 from pybrain.structure import FullConnection
+from pybrain.supervised.trainers import BackpropTrainer
 
 WIDTH  = 700
 HEIGHT = 700
@@ -30,6 +31,7 @@ class Main:
         self.running = True
         self.population = Population()
         self.food = []
+        self.toxins = []
 
         self.clock = pygame.time.Clock()
  
@@ -42,25 +44,49 @@ class Main:
     def update( self ):
 
         if len(self.food) == 0:
-            for i in range(10):
+            for i in range(20):
                 self.food.append(Food(i+1))
 
+        if len(self.toxins) == 0:
+            for i in range(20):
+                self.toxins.append(Toxin(i+1))
+
         for member in self.population.members:
-            member.left_track = .3
-            member.right_track = .9
+
+            member.obj_distance_x = 0.0
+            member.obj_distance_y = 0.0
+
+            for food in self.food:
+                food_seen = food.rect.collidepoly( member.vision_poly )
+                if not food_seen is False:
+                    dist = food.rect.distance(member.hit_poly)
+                    member.obj_distance_x = dist[0]
+                    member.obj_distance_y = dist[1]
+                    member.object_type = 1
+                    member.food_last_seen = dist
+
+                food_eaten = food.rect.collidepoly( member.hit_poly )
+                if not food_eaten is False:
+                    # member.network.train([member.left_track, member.right_track],[member.food_last_seen[0]. member.food_last_seen[1]])
+                    self.food.remove( food )
+
+            for toxin in self.toxins:
+                toxin_seen = toxin.rect.collidepoly( member.vision_poly )
+                if not toxin_seen is False:
+                    dist = toxin.rect.distance(member.hit_poly)
+                    member.obj_distance_x = dist[0]
+                    member.obj_distance_y = dist[1]
+                    member.object_type = -1
+                    member.toxin_last_seen = dist
+
+                toxin_eaten = toxin.rect.collidepoly( member.hit_poly )
+                if not toxin_eaten is False:
+                    # member.network.train([member.left_track, member.right_track],[member.toxin_last_seen[0]. member.toxin_last_seen[1]])
+                    self.toxins.remove( toxin )
+
+
             member.move()
             member.check_bounds()
-            
-            for food in self.food:
-                results = food.rect.collidepoly(member.triangle)
-                if not results is False:
-                    food.color = (100,100,255)
-                    dist = food.rect.distance(member.rect)
-                    self.obj_distance_x = dist[0]
-                    self.obj_distance_y = dist[1]
-                else:
-                    food.color  = (100,200,100)
-
 
         pass
 
@@ -70,6 +96,9 @@ class Main:
 
         for food in self.food:
             food.draw( self.display )
+
+        for toxin in self.toxins:
+            toxin.draw( self.display )
 
         for member in self.population.members:
             member.draw( self.display )
@@ -89,7 +118,7 @@ class Main:
  
         while( self.running ):
 
-            self.clock.tick(60)
+            # self.clock.tick(60)
 
             for event in pygame.event.get():
                 self.events(event)
@@ -106,7 +135,7 @@ class Main:
 class Population:
     def __init__( self ):
 
-        self.population_size = 1
+        self.population_size = 5
         self.members = [Member( i+1 ) for i in range( self.population_size )]
 
 
@@ -118,7 +147,7 @@ class Member:
     def __init__( self, number ):
 
         self.name           = "member " + str(number)
-        self.radius         = 20
+        self.radius         = 10
         self.color          = (random.randint(100,200), random.randint(100,200), random.randint(100,200))
         self.stroke         = (0,0,0)
         self.x              = (WIDTH / 2) - (self.radius / 2)
@@ -133,11 +162,12 @@ class Member:
 
         self.obj_distance_x = 0.0
         self.obj_distance_y = 0.0
+        self.object_type    = 0.0
 
         self.view_distance  = (self.radius * 2) * 5
-        self.view_width     = 50
+        self.view_angle     = 20
 
-        shape = [2,5,2]
+        shape = [3,6,2]
         self.network = buildNetwork(shape[0], shape[1], shape[2], outclass=TanhLayer )
 
         rect_points = [(self.x - self.radius, self.y - self.radius),
@@ -145,13 +175,16 @@ class Member:
             (self.x + self.radius, self.y - self.radius),
             (self.x + self.radius, self.y + self.radius)]
 
-        self.rect           = Polygon(rect_points)
-        self.triangle       = Polygon([(self.x, self.y), (self.x + self.view_width, self.y + self.view_distance), (self.x-self.view_width, self.y+self.view_distance)])
+        self.hit_poly          = Polygon(rect_points)
+        self.vision_poly       = self.calculate_vision()
 
-    # function that calculates new position based on angle, speed, radius, and current position
+
     def move( self, mod = 1 ):
 
+        output = self.network.activate([self.obj_distance_x, self.obj_distance_y, self.object_type])
+        # print "%f %f -> %f %f" % (self.obj_distance_x, self.obj_distance_y, output[0], output[1])
 
+        self.left_track, self.right_track = output
 
         self.rotation_delta = (self.left_track - self.right_track) / self.radius
         self.velocity       = self.left_track + self.right_track
@@ -165,15 +198,18 @@ class Member:
             (self.x + self.radius, self.y - self.radius),
             (self.x + self.radius, self.y + self.radius)]
 
-        self.rect = Polygon(rect_points)
+        self.hit_poly    = Polygon(rect_points)
+        self.vision_poly = self.calculate_vision()
 
-        dx1 = self.x - deltaX( self.angle - 10, self.view_distance )
-        dy1 = self.y - deltaY( self.angle - 10, self.view_distance )
+    def calculate_vision( self ):
 
-        dx2 = self.x - deltaX( self.angle + 10, self.view_distance )
-        dy2 = self.y - deltaY( self.angle + 10, self.view_distance )
+        dx1 = self.x - deltaX( self.angle - (self.view_angle / 2), self.view_distance )
+        dy1 = self.y - deltaY( self.angle - (self.view_angle / 2), self.view_distance )
 
-        self.triangle = Polygon([(self.x, self.y),(dx1, dy1 ),(dx2, dy2 )])
+        dx2 = self.x - deltaX( self.angle + (self.view_angle / 2), self.view_distance )
+        dy2 = self.y - deltaY( self.angle + (self.view_angle / 2), self.view_distance )
+
+        return Polygon([(self.x, self.y),(dx1, dy1 ),(dx2, dy2 )])
 
     # function for drawing member and member's hitbox
     def draw( self, display ):
@@ -187,8 +223,8 @@ class Member:
 
 
         if DEBUG:
-            pygame.draw.polygon( display, (255,0,0), self.triangle, 1)
-            pygame.draw.polygon(display, (200,100,100), self.rect, 1)
+            pygame.draw.polygon( display, (255,0,0), self.vision_poly, 1)
+            pygame.draw.polygon( display, (200,100,100), self.hit_poly, 1)
 
 
     # function to wrap member to opposite side of screen
@@ -230,6 +266,33 @@ class Food:
         if DEBUG:
             pygame.draw.polygon( display, (255,0,0), self.rect, 1)
 
+
+class Toxin:
+    def __init__( self, num ):
+
+        self.radius = 5
+        self.x = random.randint(self.radius, (WIDTH  - self.radius))
+        self.y = random.randint(self.radius, (HEIGHT - self.radius))
+
+        self.color  = (200,100,100)
+        self.stroke = (50,100,50)
+
+        self.name   = "Toxin Pellet #" + str(num)
+
+        # food hitbox
+        points = [(self.x-self.radius, self.y-self.radius),
+            (self.x-self.radius, self.y+self.radius),
+            (self.x+self.radius, self.y-self.radius),
+            (self.x+self.radius, self.y+self.radius)]
+
+        self.rect = Polygon(points)
+
+    def draw( self, display ):
+        pygame.draw.circle( display, self.color, (self.x, self.y), self.radius, 0)
+        pygame.draw.circle( display, self.stroke, (self.x, self.y), self.radius, 1)
+
+        if DEBUG:
+            pygame.draw.polygon( display, (255,0,0), self.rect, 1)
 
 
 
