@@ -1,15 +1,18 @@
 import random, math, sys
-import pygame
+import pygame, shelve
 from pygame.locals import *
 from pylygon import Polygon
 
 from pybrain.tools.shortcuts import buildNetwork
-from pybrain.structure import FeedForwardNetwork
-from pybrain.structure import TanhLayer, LinearLayer, SigmoidLayer
-from pybrain.structure import FullConnection
+from pybrain.structure import TanhLayer, LinearLayer, SigmoidLayer, FullConnection, FeedForwardNetwork
 
-WIDTH  = 700
-HEIGHT = 700
+from pybrain.optimization import HillClimber
+from pybrain.rl.agents import OptimizationAgent
+from pybrain.rl.experiments import EpisodicExperiment
+
+
+WIDTH  = 1200
+HEIGHT = 900
 DEBUG  = True
 
 class Main:
@@ -32,6 +35,7 @@ class Main:
         self.food = []
 
         self.clock = pygame.time.Clock()
+        self.font  = pygame.font.SysFont("arial", 10)
  
     # events handler
     def events( self, event ):
@@ -42,28 +46,29 @@ class Main:
     def update( self ):
 
         if len(self.food) == 0:
-            for i in range(50):
+            for i in range(100):
                 self.food.append(Food(i+1))
+
+        if len(self.population.members) == 0:
+            self.population = Population() 
 
         for member in self.population.members:
 
+            if member.energy == 0:
+                self.population.members.remove(member)
+                pass
+
             member.obj_distance_x = 0
             member.obj_distance_y = 0
-            member.obj_type       = 1
+            member.obj_type       = 0
 
             for food in self.food:
                 food_seen = food.rect.collidepoly(member.triangle)
                 if not food_seen is False:
-
-                    food.color = member.color
-
                     dist = food.rect.distance(member.rect)
                     member.obj_distance_x = dist[0]
                     member.obj_distance_y = dist[1]
                     member.obj_type       = 1
-                else:
-                    food.color = (100,200,100)
-                    pass
 
                 food_eaten = food.rect.collidepoly(member.rect)
                 if not food_eaten is False:
@@ -84,7 +89,7 @@ class Main:
             food.draw( self.display )
 
         for member in self.population.members:
-            member.draw( self.display )
+            member.draw( self.display, self.font )
 
         pygame.display.flip()
         pass
@@ -101,7 +106,7 @@ class Main:
  
         while( self.running ):
 
-            self.clock.tick(30)
+            self.clock.tick(120)
 
             for event in pygame.event.get():
                 self.events(event)
@@ -118,7 +123,7 @@ class Main:
 class Population:
     def __init__( self ):
 
-        self.population_size = 2
+        self.population_size = 10
         self.members = [Member( i+1 ) for i in range( self.population_size )]
 
 
@@ -130,11 +135,15 @@ class Member:
     def __init__( self, number ):
 
         self.name           = "member " + str(number)
-        self.radius         = 20
-        self.color          = (random.randint(100,200), random.randint(100,200), random.randint(100,200))
+        self.radius         = 15
+        self.color          = (random.randint(50,255), random.randint(50,255), random.randint(50,255))
         self.stroke         = (0,0,0)
-        self.x              = (WIDTH / 2) - (self.radius / 2)
-        self.y              = (HEIGHT / 2) - (self.radius / 2)
+        # self.x              = (WIDTH / 2) - (self.radius / 2)
+        # self.y              = (HEIGHT / 2) - (self.radius / 2)
+
+        self.x = random.randint(self.radius, WIDTH - self.radius)
+        self.y = random.randint(self.radius, HEIGHT - self.radius)
+
         self.angle          = 0.0
         self.left_track     = 0.0
         self.right_track    = 0.0
@@ -147,14 +156,14 @@ class Member:
         self.obj_distance_y = 0.0
         self.obj_type       = 0
 
-        self.max_energy     = 1000
-        self.energy         = 1000
+        self.max_energy     = 500
+        self.energy         = self.max_energy
 
         self.view_distance  = (self.radius * 2) * 5
         self.view_width     = 50
 
         shape = [4,10,2]
-        self.network = buildNetwork(shape[0], shape[1], shape[2], outclass=TanhLayer, hiddenclass=SigmoidLayer )
+        self.network = buildNetwork(shape[0], shape[1], shape[2], outclass=TanhLayer, hiddenclass=SigmoidLayer, bias=True )
 
         rect_points = [(self.x - self.radius, self.y - self.radius),
             (self.x - self.radius, self.y + self.radius),
@@ -168,6 +177,7 @@ class Member:
     def move( self, mod = 1 ):
 
         if self.energy != 0:
+
             self.left_track, self.right_track = self.network.activate([ self.obj_distance_x, self.obj_distance_y, self.obj_type, self.energy ])
 
             self.rotation_delta = (self.left_track - self.right_track) / self.radius
@@ -197,32 +207,7 @@ class Member:
             self.color = (100,100,100)
 
     # function for drawing member and member's hitbox
-    def draw( self, display ):
-
-        bar_height  = 5
-        bar_width   = self.radius * 2
-
-        bar_y       = self.y - self.radius - 5
-        bar_x       = self.x - self.radius
-
-        bar_rect = Polygon([
-            (bar_x, bar_y),
-            (bar_x, bar_y - bar_height),
-            (bar_x + bar_width, bar_y),
-            (bar_x + bar_width, bar_y - bar_height)
-        ])
-
-        energy_percent   = (float(self.energy) / float(self.max_energy))
-        bar_fill_amount  = (float(self.radius * 2)) * energy_percent
-
-        bar_fill_x = bar_x + bar_fill_amount
-
-        bar_fill = Polygon([
-            (bar_x, bar_y),
-            (bar_x, (bar_y - bar_height)),
-            (toFixed(bar_fill_x), bar_y),
-            (toFixed(bar_fill_x), (bar_y - bar_height))
-        ])
+    def draw( self, display, font ):
 
         dx = self.x + deltaX( self.angle, self.radius )
         dy = self.y + deltaY( self.angle, self.radius )
@@ -232,16 +217,75 @@ class Member:
         pygame.draw.circle( display, self.stroke, (toFixed(self.x), toFixed(self.y)), self.radius, 1)
         pygame.draw.line( display, self.stroke, (toFixed(self.x), toFixed(self.y)), (toFixed(dx), toFixed(dy)), 1)
 
-        if self.energy:
+        if self.energy > 0:
             #   Draw energy bar
+
+            bar_height  = 5
+            bar_width   = self.radius * 2
+
+            bar_y       = self.y - self.radius - 5
+            bar_x       = self.x - self.radius
+
+            bar_rect = Polygon([
+                (bar_x, bar_y),
+                (bar_x, bar_y - bar_height),
+                (bar_x + bar_width, bar_y),
+                (bar_x + bar_width, bar_y - bar_height)
+            ])
+
+            energy_percent   = (float(self.energy) / float(self.max_energy))
+            bar_fill_amount  = (float(self.radius * 2)) * energy_percent
+
+            bar_fill_x = bar_x + bar_fill_amount
+
+            bar_fill = Polygon([
+                (bar_x, bar_y),
+                (bar_x, (bar_y - bar_height)),
+                (toFixed(bar_fill_x), bar_y),
+                (toFixed(bar_fill_x), (bar_y - bar_height))
+            ])
+
             pygame.draw.polygon( display, (100,200,100), bar_fill, 0)
             pygame.draw.polygon( display, (0,0,0), bar_rect, 1)
 
+            if DEBUG:
 
-        if DEBUG:
-            pygame.draw.polygon( display, (255,0,0), self.triangle, 1)
-            pygame.draw.polygon( display, (200,100,100), self.rect, 1)
+                pygame.draw.polygon( display, (255,0,0), self.triangle, 1)
+                pygame.draw.polygon( display, (200,100,100), self.rect, 1)
 
+                #   Draw information panel
+                pane_width  = ((self.radius * 2) * 4) + 15
+                pane_height = 100
+
+                pane_x = (self.x - pane_width / 2)
+                pane_y = (self.y - 35)
+
+                pane_rect = Polygon([
+                    (pane_x, pane_y),
+                    (pane_x, (pane_y - pane_height)),
+                    (pane_x + pane_width, pane_y),
+                    (pane_x + pane_width, (pane_y - pane_height))
+                ])
+
+                font_color = (0,0,0)
+                label_lt = font.render("LT: " + str(self.left_track), 1, font_color )
+                label_rt = font.render("RT: " + str(self.right_track), 1, font_color )
+                label_ox = font.render("OX: " + str(self.obj_distance_x), 1, font_color )
+                label_oy = font.render("OY: " + str(self.obj_distance_y), 1, font_color )
+                label_ot = font.render("OT: " + str(self.obj_type), 1, font_color )
+                label_an = font.render("ANGLE: " + str(self.angle), 1, font_color )
+                label_en = font.render("ENERGY: " + str(self.energy), 1, font_color )
+
+                pygame.draw.polygon( display, (255,255,255), pane_rect, 0)
+                pygame.draw.polygon( display, (0,0,0), pane_rect, 1)
+
+                display.blit( label_lt, (pane_x + 5, pane_y - (pane_height - 5)))    
+                display.blit( label_rt, (pane_x + 5, pane_y - (pane_height - 15)))
+                display.blit( label_ox, (pane_x + 5, pane_y - (pane_height - 35)))
+                display.blit( label_oy, (pane_x + 5, pane_y - (pane_height - 45)))
+                display.blit( label_ot, (pane_x + 5, pane_y - (pane_height - 55)))
+                display.blit( label_an, (pane_x + 5, pane_y - (pane_height - 65)))
+                display.blit( label_en, (pane_x + 5, pane_y - (pane_height - 75)))
 
     # function to wrap member to opposite side of screen
     def check_bounds( self ):
