@@ -6,14 +6,13 @@ from pylygon import Polygon
 from pybrain.tools.shortcuts import buildNetwork
 from pybrain.structure import TanhLayer, LinearLayer, SigmoidLayer, FullConnection, FeedForwardNetwork
 
-from pybrain.optimization import HillClimber
-from pybrain.rl.agents import OptimizationAgent
-from pybrain.rl.experiments import EpisodicExperiment
+from pybrain.supervised.trainers import BackpropTrainer
+from pybrain.datasets.classification import SupervisedDataSet
 
 
 WIDTH  = 1200
 HEIGHT = 900
-DEBUG  = True
+DEBUG  = False
 
 class Main:
 
@@ -31,7 +30,10 @@ class Main:
         pygame.display.flip()
 
         self.running = True
+
         self.population = Population()
+        self.generation = 1
+
         self.food = []
 
         self.clock = pygame.time.Clock()
@@ -50,12 +52,19 @@ class Main:
                 self.food.append(Food(i+1))
 
         if len(self.population.members) == 0:
-            self.population = Population() 
+
+            self.food = []
+            for i in range(100):
+                self.food.append(Food(i+1))
+
+            self.population.populate()
+            self.generation += 1
 
         for member in self.population.members:
 
             if member.energy == 0:
-                self.population.members.remove(member)
+                self.population.score( member )
+                self.population.members.remove( member )
                 pass
 
             member.obj_distance_x = 0
@@ -73,7 +82,14 @@ class Main:
                 food_eaten = food.rect.collidepoly(member.rect)
                 if not food_eaten is False:
                     member.food_eaten += 1
-                    member.energy     += (member.max_energy / 25)
+                    member.energy     += (member.max_energy / 20)
+
+                    member.food_memories.addSample(
+                        [member.obj_distance_x, member.obj_distance_y, member.obj_type, member.angle, member.energy],
+                        [member.left_track, member.right_track]
+                    )
+                    member.train()
+
                     self.food.remove( food )
                 else:
                     pass
@@ -83,7 +99,12 @@ class Main:
 
     # render function
     def render( self ):
+
         self.display.fill((255,255,255))
+
+        font_color = (0,0,0)
+        label_pop = self.font.render("Generation: " + str(self.generation), 1, font_color )
+        self.display.blit( label_pop, (10,10))  
 
         for food in self.food:
             food.draw( self.display )
@@ -123,26 +144,61 @@ class Main:
 class Population:
     def __init__( self ):
 
+        self.overall_max = 0
+        self.pop_max     = 0
+        self.fittest = []
         self.population_size = 10
-        self.members = [Member( i+1 ) for i in range( self.population_size )]
+        self.populate()
 
+    def score( self, member ):
+        if member.food_eaten > self.pop_max:
+            self.pop_max = member.food_eaten
+            self.fittest = member
+
+            if self.pop_max > self.overall_max:
+                self.overall_max = self.pop_max
+
+
+        print "current member: %i   pop max: %i     overall max: %i" %( member.food_eaten, self.pop_max, self.overall_max )
+
+    def populate( self ):
+
+        mutation_rate = .1
+        self.pop_max = 0
+
+        print "next generation"
+
+        if self.fittest:
+            members = []
+            for i in range(self.population_size):
+                if random.random() <= mutation_rate:
+                    members.append( Member( len(members) + 1, None, None ))
+                else:
+                    members.append( Member( len(members) + 1, self.fittest.network, self.fittest.color ))
+            self.members = members
+            # self.fittest = []
+        else:
+            self.members = [Member( i+1, None, None ) for i in range( self.population_size )]
 
 #
 #   Member Class
 #
 class Member:
 
-    def __init__( self, number ):
+    def __init__( self, number, network, color ):
 
         self.name           = "member " + str(number)
         self.radius         = 15
-        self.color          = (random.randint(50,255), random.randint(50,255), random.randint(50,255))
-        self.stroke         = (0,0,0)
-        # self.x              = (WIDTH / 2) - (self.radius / 2)
-        # self.y              = (HEIGHT / 2) - (self.radius / 2)
 
-        self.x = random.randint(self.radius, WIDTH - self.radius)
-        self.y = random.randint(self.radius, HEIGHT - self.radius)
+        if color:
+            self.color = color
+        else:
+            self.color          = (random.randint(50,255), random.randint(50,255), random.randint(50,255))
+
+        self.stroke         = (0,0,0)
+
+        self.x = random.randint( self.radius, WIDTH - self.radius )
+        self.y = random.randint( self.radius, HEIGHT - self.radius )
 
         self.angle          = 0.0
         self.left_track     = 0.0
@@ -156,14 +212,19 @@ class Member:
         self.obj_distance_y = 0.0
         self.obj_type       = 0
 
-        self.max_energy     = 500
+        self.max_energy     = 1000
         self.energy         = self.max_energy
 
         self.view_distance  = (self.radius * 2) * 5
         self.view_width     = 50
 
-        shape = [4,10,2]
-        self.network = buildNetwork(shape[0], shape[1], shape[2], outclass=TanhLayer, hiddenclass=SigmoidLayer, bias=True )
+        self.food_memories  = SupervisedDataSet(5,2)
+
+        if network == None:
+            shape = [5,15,2]
+            self.network = buildNetwork(shape[0], shape[1], shape[2], outclass=TanhLayer, bias=True )
+        else:
+            self.network = network
 
         rect_points = [(self.x - self.radius, self.y - self.radius),
             (self.x - self.radius, self.y + self.radius),
@@ -178,7 +239,9 @@ class Member:
 
         if self.energy != 0:
 
-            self.left_track, self.right_track = self.network.activate([ self.obj_distance_x, self.obj_distance_y, self.obj_type, self.energy ])
+            self.left_track, self.right_track = self.network.activate(
+                [self.obj_distance_x, self.obj_distance_y, self.obj_type, self.angle, self.energy ]
+            )
 
             self.rotation_delta = (self.left_track - self.right_track) / self.radius
             self.velocity       = self.left_track + self.right_track
@@ -203,8 +266,6 @@ class Member:
             self.triangle = Polygon([(self.x, self.y),(dx1, dy1 ),(dx2, dy2 )])
 
             self.energy -= 1
-        else:
-            self.color = (100,100,100)
 
     # function for drawing member and member's hitbox
     def draw( self, display, font ):
@@ -236,7 +297,9 @@ class Member:
             energy_percent   = (float(self.energy) / float(self.max_energy))
             bar_fill_amount  = (float(self.radius * 2)) * energy_percent
 
-            bar_fill_x = bar_x + bar_fill_amount
+            bar_fill_x = bar_x + (bar_fill_amount + 1)
+            if bar_fill_x > (bar_x + bar_width):
+                bar_fill_x = bar_x + bar_width
 
             bar_fill = Polygon([
                 (bar_x, bar_y),
@@ -275,6 +338,7 @@ class Member:
                 label_ot = font.render("OT: " + str(self.obj_type), 1, font_color )
                 label_an = font.render("ANGLE: " + str(self.angle), 1, font_color )
                 label_en = font.render("ENERGY: " + str(self.energy), 1, font_color )
+                label_fo = font.render("FOOD: " + str(self.food_eaten), 1, font_color )
 
                 pygame.draw.polygon( display, (255,255,255), pane_rect, 0)
                 pygame.draw.polygon( display, (0,0,0), pane_rect, 1)
@@ -286,6 +350,7 @@ class Member:
                 display.blit( label_ot, (pane_x + 5, pane_y - (pane_height - 55)))
                 display.blit( label_an, (pane_x + 5, pane_y - (pane_height - 65)))
                 display.blit( label_en, (pane_x + 5, pane_y - (pane_height - 75)))
+                display.blit( label_fo, (pane_x + 5, pane_y - (pane_height - 85)))
 
     # function to wrap member to opposite side of screen
     def check_bounds( self ):
@@ -298,6 +363,11 @@ class Member:
             self.y = 0
         elif self.y < 0:
             self.y = HEIGHT
+
+    def train( self ):
+        trainer = BackpropTrainer(self.network, self.food_memories)
+        trainer.trainEpochs( len(self.food_memories) )
+
 
 class Food:
     def __init__( self, num ):
