@@ -34,7 +34,11 @@ class Main:
         self.population = Population()
         self.generation = 1
 
-        self.food = []
+        self.food   = []
+        self.toxins = []
+
+        self.food_amount  = 60
+        self.toxin_amount = 40
 
         self.clock = pygame.time.Clock()
         self.font  = pygame.font.SysFont("arial", 10)
@@ -48,14 +52,22 @@ class Main:
     def update( self ):
 
         if len(self.food) == 0:
-            for i in range(100):
+            for i in range(self.food_amount):
                 self.food.append(Food(i+1))
+
+        if len(self.toxins) == 0:
+            for i in range(self.toxin_amount):
+                self.toxins.append(Toxin(i+1))
 
         if len(self.population.members) == 0:
 
             self.food = []
-            for i in range(100):
+            for i in range(self.food_amount):
                 self.food.append(Food(i+1))
+
+            self.toxins = []
+            for i in range(self.toxin_amount):
+                self.food.append(Toxin(i+1))
 
             self.population.populate()
             self.generation += 1
@@ -94,6 +106,29 @@ class Main:
                 else:
                     pass
 
+            for toxin in self.toxins:
+                toxin_seen = toxin.rect.collidepoly(member.triangle)
+                if not toxin_seen is False:
+                    dist = toxin.rect.distance(member.rect)
+                    member.obj_distance_x = dist[0]
+                    member.obj_distance_y = dist[1]
+                    member.obj_type       = -1
+
+                toxin_eaten = toxin.rect.collidepoly(member.rect)
+                if not toxin_eaten is False:
+                    member.toxin_eaten += 1
+                    member.energy     -= (member.max_energy / 10)
+
+                    member.toxin_memories.addSample(
+                        [member.obj_distance_x, member.obj_distance_y, member.obj_type, member.angle, member.energy],
+                        [member.left_track, member.right_track]
+                    )
+                    member.train()
+
+                    self.toxins.remove( toxin )
+                else:
+                    pass
+
             member.move()
             member.check_bounds()
 
@@ -108,6 +143,9 @@ class Main:
 
         for food in self.food:
             food.draw( self.display )
+
+        for toxin in self.toxins:
+            toxin.draw( self.display )
 
         for member in self.population.members:
             member.draw( self.display, self.font )
@@ -147,19 +185,20 @@ class Population:
         self.overall_max = 0
         self.pop_max     = 0
         self.fittest = []
-        self.population_size = 10
+        self.population_size = 5
         self.populate()
 
     def score( self, member ):
-        if member.food_eaten > self.pop_max:
-            self.pop_max = member.food_eaten
+        delta_score = (member.food_eaten - member.toxin_eaten)
+        if delta_score > self.pop_max:
+            self.pop_max = delta_score
             self.fittest = member
 
             if self.pop_max > self.overall_max:
                 self.overall_max = self.pop_max
 
 
-        print "current member: %i   pop max: %i     overall max: %i" %( member.food_eaten, self.pop_max, self.overall_max )
+        print "current member: %i   pop max: %i     overall max: %i" %( delta_score, self.pop_max, self.overall_max )
 
     def populate( self ):
 
@@ -176,7 +215,6 @@ class Population:
                 else:
                     members.append( Member( len(members) + 1, self.fittest.network, self.fittest.color ))
             self.members = members
-            # self.fittest = []
         else:
             self.members = [Member( i+1, None, None ) for i in range( self.population_size )]
 
@@ -219,6 +257,7 @@ class Member:
         self.view_width     = 50
 
         self.food_memories  = SupervisedDataSet(5,2)
+        self.toxin_memories = SupervisedDataSet(5,2)
 
         if network == None:
             shape = [5,15,2]
@@ -339,18 +378,20 @@ class Member:
                 label_an = font.render("ANGLE: " + str(self.angle), 1, font_color )
                 label_en = font.render("ENERGY: " + str(self.energy), 1, font_color )
                 label_fo = font.render("FOOD: " + str(self.food_eaten), 1, font_color )
+                label_tx = font.render("TOXIN: " + str(self.toxin_eaten), 1, font_color )
 
                 pygame.draw.polygon( display, (255,255,255), pane_rect, 0)
                 pygame.draw.polygon( display, (0,0,0), pane_rect, 1)
 
                 display.blit( label_lt, (pane_x + 5, pane_y - (pane_height - 5)))    
                 display.blit( label_rt, (pane_x + 5, pane_y - (pane_height - 15)))
-                display.blit( label_ox, (pane_x + 5, pane_y - (pane_height - 35)))
-                display.blit( label_oy, (pane_x + 5, pane_y - (pane_height - 45)))
-                display.blit( label_ot, (pane_x + 5, pane_y - (pane_height - 55)))
-                display.blit( label_an, (pane_x + 5, pane_y - (pane_height - 65)))
-                display.blit( label_en, (pane_x + 5, pane_y - (pane_height - 75)))
-                display.blit( label_fo, (pane_x + 5, pane_y - (pane_height - 85)))
+                display.blit( label_ox, (pane_x + 5, pane_y - (pane_height - 25)))
+                display.blit( label_oy, (pane_x + 5, pane_y - (pane_height - 35)))
+                display.blit( label_ot, (pane_x + 5, pane_y - (pane_height - 45)))
+                display.blit( label_an, (pane_x + 5, pane_y - (pane_height - 55)))
+                display.blit( label_en, (pane_x + 5, pane_y - (pane_height - 65)))
+                display.blit( label_fo, (pane_x + 5, pane_y - (pane_height - 75)))
+                display.blit( label_tx, (pane_x + 5, pane_y - (pane_height - 85)))
 
     # function to wrap member to opposite side of screen
     def check_bounds( self ):
@@ -365,8 +406,10 @@ class Member:
             self.y = HEIGHT
 
     def train( self ):
-        trainer = BackpropTrainer(self.network, self.food_memories)
-        trainer.trainEpochs( len(self.food_memories) )
+        food_trainer = BackpropTrainer(self.network, self.food_memories)
+        food_trainer.trainEpochs( len(self.food_memories) )
+        toxin_trainer = BackpropTrainer(self.network, self.toxin_memories)
+        toxin_trainer.trainEpochs( len(self.toxin_memories) )
 
 
 class Food:
@@ -377,8 +420,6 @@ class Food:
         self.y = random.randint(self.radius, (HEIGHT - self.radius))
 
         self.color  = (100,200,100)
-        self.stroke = (50,100,50)
-
         self.name   = "Food Pellet #" + str(num)
 
         # food hitbox
@@ -390,11 +431,27 @@ class Food:
         self.rect = Polygon(points)
 
     def draw( self, display ):
-        pygame.draw.circle( display, self.color, (self.x, self.y), self.radius, 0)
-        pygame.draw.circle( display, self.stroke, (self.x, self.y), self.radius, 1)
+        pygame.draw.polygon( display, self.color, self.rect, 0)
 
-        if DEBUG:
-            pygame.draw.polygon( display, (255,0,0), self.rect, 1)
+
+class Toxin:
+    def __init__( self, num ):
+        self.radius = 5
+        self.x = random.randint(self.radius, (WIDTH  - self.radius))
+        self.y = random.randint(self.radius, (HEIGHT - self.radius))
+        self.color  = (200,100,100)
+        self.name   = "Toxin Pellet #" + str(num)
+
+        # food hitbox
+        points = [(self.x-self.radius, self.y-self.radius),
+            (self.x-self.radius, self.y+self.radius),
+            (self.x+self.radius, self.y-self.radius),
+            (self.x+self.radius, self.y+self.radius)]
+
+        self.rect = Polygon(points)
+
+    def draw( self, display ):
+        pygame.draw.polygon( display, self.color, self.rect, 0)
 
 
 
