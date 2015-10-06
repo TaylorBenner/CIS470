@@ -29,15 +29,18 @@ class Main:
 
 	def update( self ):
 
-		for obj in self.environment.get_objects():
-			if obj: obj.update()
+		for obj in self.environment.members:
+			if obj: obj.update( self.environment.members )
 
-		pass
+		self.environment.update_targets()
+
 
 	def render( self ):
 		self.display.fill((255,255,255))
+
 		for obj in self.environment.get_objects():
 			if obj: obj.draw( self.display )
+
 		pygame.display.flip()
 
 	def cleanup( self ):

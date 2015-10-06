@@ -24,3 +24,15 @@ class Helper:
 	@staticmethod
 	def delta_y( angle, number ):
 		return math.cos(angle) * number
+
+	@staticmethod
+	def get_slope( ref, tar ):
+		ax, ay = ref
+		bx, by = tar
+		return float(abs(math.hypot((ax-bx),(ay-by))))
+
+	@staticmethod
+	def get_angle( ref, tar ):
+		dx = ref[0] - tar[0]
+		dy = ref[1] - tar[1]
+		return math.atan2( dx, dy )

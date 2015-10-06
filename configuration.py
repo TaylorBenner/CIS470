@@ -3,8 +3,8 @@ DATABASE_NAME   	= "generation_output.db"
 WIDTH  				= 600
 HEIGHT 				= 600
 
-POPULATION_SIZE 	= 10
-TARGET_COUNT    	= 10
+POPULATION_SIZE 	= 20
+TARGET_COUNT    	= 20
 
 MUTATION_RATE   	= .05
 
