@@ -574,55 +574,20 @@ class Brain:
 		self.add_input(self.linear_neuron("distance_n"))
 		self.add_input(self.linear_neuron("angle_n"))
 		self.add_input(self.tanh_neuron("type_n"))
-		self.add_input(self.tanh_neuron("energy_n"))
+		self.add_input(self.sig_neuron("energy_n"))
 
 		self.add_logic(self.sig_neuron("logic_1a"))
-		self.add_logic(self.sig_neuron("logic_1b"))
-		self.add_logic(self.sig_neuron("logic_1c"))
-		self.add_logic(self.sig_neuron("logic_1d"))
-		self.add_logic(self.sig_neuron("logic_2a"))
-		self.add_logic(self.sig_neuron("logic_2b"))
 
-		self.add_output(self.linear_neuron("left_n"))
-		self.add_output(self.linear_neuron("right_n"))
+		self.add_output(self.tanh_neuron("left_n"))
+		self.add_output(self.tanh_neuron("right_n"))
 
 		self.add_connection(FullConnection(self.input_neurons[0], self.logic_neurons[0]))
-		self.add_connection(FullConnection(self.input_neurons[0], self.logic_neurons[1]))
-		self.add_connection(FullConnection(self.input_neurons[0], self.logic_neurons[2]))
-		self.add_connection(FullConnection(self.input_neurons[0], self.logic_neurons[3]))
-
 		self.add_connection(FullConnection(self.input_neurons[1], self.logic_neurons[0]))
-		self.add_connection(FullConnection(self.input_neurons[1], self.logic_neurons[1]))
-		self.add_connection(FullConnection(self.input_neurons[1], self.logic_neurons[2]))
-		self.add_connection(FullConnection(self.input_neurons[1], self.logic_neurons[3]))
-
 		self.add_connection(FullConnection(self.input_neurons[2], self.logic_neurons[0]))
-		self.add_connection(FullConnection(self.input_neurons[2], self.logic_neurons[1]))
-		self.add_connection(FullConnection(self.input_neurons[2], self.logic_neurons[2]))
-		self.add_connection(FullConnection(self.input_neurons[2], self.logic_neurons[3]))
-
 		self.add_connection(FullConnection(self.input_neurons[3], self.logic_neurons[0]))
-		self.add_connection(FullConnection(self.input_neurons[3], self.logic_neurons[1]))
-		self.add_connection(FullConnection(self.input_neurons[3], self.logic_neurons[2]))
-		self.add_connection(FullConnection(self.input_neurons[3], self.logic_neurons[3]))
 
-		self.add_connection(FullConnection(self.logic_neurons[0], self.logic_neurons[4]))
-		self.add_connection(FullConnection(self.logic_neurons[0], self.logic_neurons[5]))
-
-		self.add_connection(FullConnection(self.logic_neurons[1], self.logic_neurons[4]))
-		self.add_connection(FullConnection(self.logic_neurons[1], self.logic_neurons[5]))
-
-		self.add_connection(FullConnection(self.logic_neurons[2], self.logic_neurons[4]))
-		self.add_connection(FullConnection(self.logic_neurons[2], self.logic_neurons[5]))
-
-		self.add_connection(FullConnection(self.logic_neurons[3], self.logic_neurons[4]))
-		self.add_connection(FullConnection(self.logic_neurons[3], self.logic_neurons[5]))
-
-		self.add_connection(FullConnection(self.logic_neurons[4], self.output_neurons[0]))
-		self.add_connection(FullConnection(self.logic_neurons[4], self.output_neurons[1]))
-
-		self.add_connection(FullConnection(self.logic_neurons[5], self.output_neurons[0]))
-		self.add_connection(FullConnection(self.logic_neurons[5], self.output_neurons[1]))
+		self.add_connection(FullConnection(self.logic_neurons[0], self.output_neurons[0]))
+		self.add_connection(FullConnection(self.logic_neurons[0], self.output_neurons[1]))
 
 		self.network.sortModules()
 
