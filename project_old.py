@@ -22,6 +22,8 @@ _max_score_time           = 0.0
 
 _steps = 0
 
+_current_best = None
+
 
 
 class Main:
@@ -31,7 +33,11 @@ class Main:
 		self.display        = pygame.display.set_mode([WIDTH, HEIGHT], pygame.HWSURFACE | pygame.DOUBLEBUF)
 		self.clock          = pygame.time.Clock()
 		self.font           = pygame.font.SysFont("monospace", 12)
- 
+
+		plt.figure(1)
+		self.plot_x = []
+		self.plot_y = []
+		 
 	# init function
 	def init( self ):
 		self.display.fill((255,255,255))
@@ -64,9 +70,12 @@ class Main:
 		if not active:
 			self.env.score_members()
 			self.env.perform_selection()
+			self.plot_y.append( 1 - (1 /float(self.env.parents[0].score)))
 			self.env.perform_crossover()
 			self.env.perform_mutation()
 			self.env.generations += 1
+
+			self.plot_x.append(int(self.env.generations))
 
 
 		td = float(int(pygame.time.get_ticks())-t1)
@@ -101,6 +110,11 @@ class Main:
 		print "maximum perform_crossover() time :%i ms" % _max_crossover_time
 		print "maximum perform_mutation() time  :%i ms\n" % _max_mutation_time
 		pygame.quit()
+
+		plt.plot(self.plot_x, self.plot_y)
+		plt.ylabel("Best Fit")
+		plt.xlabel("Generations")
+		plt.show()
  
 	# main loop
 	def execute( self ):
@@ -124,8 +138,8 @@ class Main:
 
 class Environment:
 	#   class members 
-	_MEMBER_COUNT    = 20
-	_FOOD_COUNT      = 10
+	_MEMBER_COUNT    = 30
+	_FOOD_COUNT      = 15
 
 	_MEMBERS_SPAWNED = 0
 	_FOOD_SPAWNED    = 0
@@ -139,9 +153,9 @@ class Environment:
 		self.members    = []
 		self.parents    = []
 
-		self.generations = 0
+		self.generations = 1
 
-		for f in range(self._FOOD_COUNT): self.new_food()
+		for f in range(self._FOOD_COUNT): 	self.new_food()
 		for m in range(self._MEMBER_COUNT): self.new_member()
 
 	def getObjects( self ):
@@ -150,8 +164,26 @@ class Environment:
 	def getTargets( self ):
 		return self.food
 
-	def new_member( self, network = None, color = None, i = None, l = None, o = None, c = None ):
-		self.members.append( Member( self._MEMBERS_SPAWNED+1, network, color, i = i, l = l, o = o, c = c ) )
+	def new_member( self, parent = None ):
+
+		if self.getTargets():
+			pos_list = [[t.x,t.y] for t in self.getTargets()]
+		else:
+			pos_list = None
+
+		if parent:
+			self.members.append( Member( 
+				self._MEMBERS_SPAWNED+1, 
+				parent.brain.network, 
+				color = parent.color, 
+				i = parent.brain.input_neurons, 
+				l = parent.brain.logic_neurons, 
+				o = parent.brain.output_neurons, 
+				c = parent.brain.connections, 
+				pos_list = pos_list 
+			))
+		else:
+			self.members.append(Member( self._MEMBERS_SPAWNED+1, pos_list = pos_list ))
 		self._MEMBERS_SPAWNED += 1
 
 	def new_food( self ):
@@ -160,7 +192,7 @@ class Environment:
 
 	def score_members( self ):
 
-		global _max_score_time
+		global _max_score_time		
 		t1 = int(pygame.time.get_ticks())
 
 		if DEBUG: print "\nrunning scoring..."
@@ -177,8 +209,8 @@ class Environment:
 
 		for member in self.members:
 			if total_score == 0: total_score = 1
-			member.score = float( member.score / total_score)
-			total_normalized_score += member.score
+			member.normalized_score = float( member.score / total_score)
+			total_normalized_score += member.normalized_score
 
 		print "total normalized: %f \n" % total_normalized_score
 
@@ -186,15 +218,40 @@ class Environment:
 		_max_score_time = td if td > _max_score_time else _max_score_time
 
 	def perform_selection( self ):
+		global _current_best
 		if DEBUG: print "running selection..."
 		self.members.sort( key = lambda member: member.score, reverse=True )
 		for m in self.members:
 			print "member %i - lifespan: %i - score: %f" %( m.member_number, m.lifespan, m.score )
 		print ""
 
-		parent_count = int(math.floor((self._MEMBER_COUNT/2)/2)*2)
-		self.parents = self.members[:parent_count]
-		self.members = []
+		if _current_best:
+			# parent_count = int(math.floor((self._MEMBER_COUNT/2)/2)*2) - 1
+			parent_count = (self._MEMBER_COUNT / 2)
+			self.parents = self.members[:parent_count]
+
+			if self.parents[0].score > _current_best.score:
+				_current_best = self.parents[0]
+			else:
+				del self.parents[-1]
+				self.parents.append( _current_best )
+
+			self.members = []
+
+		else:
+			# parent_count = int(math.floor((self._MEMBER_COUNT/2)/2)*2)
+			parent_count = (self._MEMBER_COUNT / 2)
+			self.parents = self.members[:parent_count]
+			self.members = []
+			_current_best = self.parents[0]
+
+		# agressive selection to promote food consumption
+		# those who do not eat, cannot reproduce
+		for p in self.parents:
+			if p.food == 0:
+				self.parents.remove(p)
+
+		print "current best: member %i - lifespan: %is - score: %i" %( _current_best.member_number, _current_best.lifespan/1000, _current_best.score )
 
 	def perform_crossover( self ):
 
@@ -203,16 +260,11 @@ class Environment:
 		if DEBUG: print "running crossover..."
 
 		for parent in self.parents:
-			child_count = self._MEMBER_COUNT / len(self.parents)
+			cc = self._MEMBER_COUNT / len(self.parents)
+			child_count = cc if cc < (self._MEMBER_COUNT / 4) else (self._MEMBER_COUNT / 4)
 			for child in range(child_count):
-				if random.random() <= MUTATION_RATE:
-					self.new_member()
-				else:
-					self.new_member( 
-						parent.brain.network, parent.color, i = parent.brain.input_neurons,
-						l = parent.brain.logic_neurons, o = parent.brain.output_neurons, 
-						c = parent.brain.connections 
-					)
+				if random.random() <= .1: self.new_member()
+				else: self.new_member( parent )
 
 
 		for remaining in range( self._MEMBER_COUNT - len(self.members) ):
@@ -314,12 +366,12 @@ class Member:
 	max_energy      = 1000
 
 	#   class methods
-	def __init__( self, number, net, color, i = None, l = None, o = None, c = None ):
+	def __init__( self, number, net=None, color=None, i = None, l = None, o = None, c = None, pos_list=None ):
 
 		#   instance members
 		self.member_number = number
 
-		self.x, self.y    = random_coordinates( radius = self.radius )
+		self.x, self.y    = random_coordinates( radius = self.radius, plist=pos_list, trad=5 )
 		self.color        = random_color() if not color else color
 		self.stroke       = calculate_contrast( self.color )
 
@@ -364,14 +416,13 @@ class Member:
 				self.distance_to, self.relation_to, object_type, self.energy_input
 			])
 
+			self.left_track = round(self.left_track, 1)
+			self.right_track = round(self.right_track, 1)
+
 			#   increment rotation
 			self.radians  += ((self.left_track - self.right_track) / self.radius)
 			if self.radians > 2*math.pi: self.radians = 0
 			elif self.radians < 0: self.radians = 2*math.pi
-
-			print ((self.left_track - self.right_track) / self.radius)
-			print self.radians
-			print "----"
 
 			#   calculate speed
 			self.velocity =  (self.left_track + self.right_track) 
@@ -573,7 +624,8 @@ class Brain:
 		self.add_input(self.tanh_neuron("type_n"))
 		self.add_input(self.sig_neuron("energy_n"))
 
-		self.add_logic(self.sig_neuron("logic_1a"))
+		logic = random.choice([SigmoidLayer(1), LinearLayer(1), TanhLayer(1), GaussianLayer(1)])
+		self.add_logic(logic)
 
 		self.add_output(self.tanh_neuron("left_n"))
 		self.add_output(self.tanh_neuron("right_n"))
@@ -602,7 +654,7 @@ class Brain:
 
 	def add_random_neuron( self ):
 
-		n1 = random.choice([SigmoidLayer(1), LinearLayer(1), TanhLayer(1), GaussianLayer(1)])
+		n1 = random.choice([SigmoidLayer(1), LinearLayer(1), TanhLayer(1), GaussianLayer(1), BiasUnit()])
 		n2 = random.choice(self.all_neurons())
 
 		self.add_logic( n1 )
@@ -640,9 +692,18 @@ def calculate_contrast( color ):
 def random_color():
 	return [ random.randint(0,255) for i in range(3) ]
 
-def random_coordinates( radius = 0 ):
+def random_coordinates( radius = 0, plist = None, trad = None ):
+
 	x = random.randint(radius,WIDTH-radius)
 	y = random.randint(radius,HEIGHT-radius)
+
+	if plist:
+		for p in plist:
+			ax,bx = x - p[0], y - p[1]
+			dx = math.sqrt( ax * ax + bx * bx )
+			if dx < (radius + trad):
+				random_coordinates(radius, plist, trad)
+
 	return [x,y]
 
 def toFixed( number ):
