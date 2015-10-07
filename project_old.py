@@ -8,7 +8,7 @@ import unittest
 DEBUG        = True
 WIDTH        = 600
 HEIGHT       = 600
-MUTATION_RATE = .05
+MUTATION_RATE = .008
 
 #   Debugging Globals
 _max_collision_time       = 0.0
@@ -124,13 +124,11 @@ class Main:
 
 class Environment:
 	#   class members 
-	_MEMBER_COUNT    = 30
+	_MEMBER_COUNT    = 20
 	_FOOD_COUNT      = 10
-	_TOXIN_COUNT     = 0
 
 	_MEMBERS_SPAWNED = 0
 	_FOOD_SPAWNED    = 0
-	_TOXIN_SPAWNED   = 0
 
 	#   class methods
 	def __init__( self ):
@@ -144,14 +142,13 @@ class Environment:
 		self.generations = 0
 
 		for f in range(self._FOOD_COUNT): self.new_food()
-		for t in range(self._TOXIN_COUNT): self.new_toxin()
 		for m in range(self._MEMBER_COUNT): self.new_member()
 
 	def getObjects( self ):
-		return self.food + self.members + self.toxins
+		return self.food + self.members
 
 	def getTargets( self ):
-		return self.food + self.toxins
+		return self.food
 
 	def new_member( self, network = None, color = None, i = None, l = None, o = None, c = None ):
 		self.members.append( Member( self._MEMBERS_SPAWNED+1, network, color, i = i, l = l, o = o, c = c ) )
@@ -160,10 +157,6 @@ class Environment:
 	def new_food( self ):
 		self.food.append( Target( self._FOOD_SPAWNED+1, "food" ) )
 		self._FOOD_SPAWNED += 1
-
-	def new_toxin( self ):
-		self.toxins.append( Target( self._TOXIN_SPAWNED+1, "toxin" ) )
-		self._TOXIN_SPAWNED += 1
 
 	def score_members( self ):
 
@@ -176,7 +169,7 @@ class Environment:
 
 		for member in self.members:
 
-			score = member.lifespan + (member.food * 1000) - (member.toxin * 1000)
+			score = member.lifespan + (member.food * 1000)
 			if score < 0: score = 0
 
 			member.score = float(score)
@@ -199,8 +192,7 @@ class Environment:
 			print "member %i - lifespan: %i - score: %f" %( m.member_number, m.lifespan, m.score )
 		print ""
 
-		# parent_count = int(math.floor((self._MEMBER_COUNT/2)/2)*2)
-		parent_count = self._MEMBER_COUNT / 2
+		parent_count = int(math.floor((self._MEMBER_COUNT/2)/2)*2)
 		self.parents = self.members[:parent_count]
 		self.members = []
 
@@ -241,6 +233,7 @@ class Environment:
 			for module in member.brain.network.modules:
 				for connection in member.brain.network.connections[module]:
 					if random.random() <= MUTATION_RATE:
+						mutations += 1
 						member.brain.randomize_connection( connection )
 
 			if random.random() <= MUTATION_RATE:
@@ -376,6 +369,10 @@ class Member:
 			if self.radians > 2*math.pi: self.radians = 0
 			elif self.radians < 0: self.radians = 2*math.pi
 
+			print ((self.left_track - self.right_track) / self.radius)
+			print self.radians
+			print "----"
+
 			#   calculate speed
 			self.velocity =  (self.left_track + self.right_track) 
 
@@ -427,7 +424,7 @@ class Member:
 			else: self.energy_input = -1
 
 			if self.close_to:
-				self.distance_to = getSlope([self.x,self.y], [self.close_to.x, self.close_to.y])
+				self.distance_to = 1 - (1/getSlope([self.x,self.y], [self.close_to.x, self.close_to.y]))
 				angle       	 = getAngle([self.x, self.y], [self.close_to.x, self.close_to.y])
 
 				self.relation_to = (abs(math.degrees(angle) - math.degrees(self.radians)) - 180)
@@ -571,7 +568,7 @@ class Brain:
 
 		self.network = FeedForwardNetwork()
 
-		self.add_input(self.linear_neuron("distance_n"))
+		self.add_input(self.sig_neuron("distance_n"))
 		self.add_input(self.linear_neuron("angle_n"))
 		self.add_input(self.tanh_neuron("type_n"))
 		self.add_input(self.sig_neuron("energy_n"))
@@ -605,7 +602,7 @@ class Brain:
 
 	def add_random_neuron( self ):
 
-		n1 = SigmoidLayer(1)
+		n1 = random.choice([SigmoidLayer(1), LinearLayer(1), TanhLayer(1), GaussianLayer(1)])
 		n2 = random.choice(self.all_neurons())
 
 		self.add_logic( n1 )
