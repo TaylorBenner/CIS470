@@ -6,6 +6,7 @@ class Main:
 	def __init__( self ):
 		pygame.init()
 		self.running        = True
+		self.will_render    = True
 		self.display        = pygame.display.set_mode(
 								[config.window_width, config.window_height], 
 								pygame.HWSURFACE | pygame.DOUBLEBUF
@@ -19,6 +20,10 @@ class Main:
 
 	def execute( self ):
 		while( self.running ):
+
+			if self.will_render:
+				self.clock.tick(60)
+
 			for event in pygame.event.get():
 				self.events(event)
 			self.update()
@@ -30,16 +35,24 @@ class Main:
 			self.running = False
 
 	def update( self ):
-		pass
+
+		self.environment.update_all()
+		if self.environment.has_active == False:
+			self.environment.perform_selection()
 
 	def render( self ):
-		pass
+		if self.will_render:
+			self.display.fill((255,255,255))
+			for obj in self.environment.get_objects():
+				obj.draw( self.display )
+
+			pygame.draw.rect( self.display, [150,150,150], [config.viewport_width, 0, config.window_width - config.viewport_width, config.viewport_height])
+			pygame.draw.aaline( self.display, [0,0,0], [config.viewport_width, 0], [config.viewport_width, config.viewport_height], 1)
+
+			pygame.display.flip()
 
 	def cleanup( self ):
 		pygame.quit()
-
-
-
 
 
 
@@ -47,12 +60,14 @@ class Environment:
 	def __init__( self ):
 		
 		# init placeholder
-		self.members = []
-		self.targets = []
+		self.members 	= []
+		self.targets 	= []
 
 		# init members and targets
-		self.members = [ self.add_new_member() for i in range(config.population_size) ]
-		self.targets = [ self.add_new_target() for i in range(config.target_count) ]
+		self.members 	= [ self.add_new_member() for i in range(config.population_size) ]
+		self.targets 	= [ self.add_new_target() for i in range(config.target_count) ]
+
+		self.has_active = False
 
 	def add_new_member( self ):
 		new_member 		= Member()
@@ -74,23 +89,50 @@ class Environment:
 	def get_positions( self ):
 		return [[obj.x,obj.y] for obj in self.get_objects()]
 
-	def check_collisions( self ):
-		for member in self.members:
+	def check_collisions( self, member ):
+		if member.alive:
 			closest_target = None
 			for target in self.targets:
 				if Helper.is_close( member, target ):
+
 					if closest_target == None: 
 						closest_target = target
-					else:
-						current_distance = Helper.get_distance( member, target )
-						closest_distance = Helper.get_distance( member, closest_target )
-						if current_distance < closest_distance: 
-							closest_target = target
+
+					current_distance = Helper.get_distance( member, target )
+					closest_distance = Helper.get_distance( member, closest_target )
+
+					if current_distance < closest_distance: 
+						closest_target = target
+
 					if Helper.is_collided( member, target ):
 						target.consumed = True
 						member.energy 	+= target.energy_amount
 						closest_target = None
+
 			member.close_to = closest_target
+
+	def update_all( self ):
+
+		for member in self.members:
+			member.update_member_state()
+			member.update_member_position()
+			self.check_collisions( member )
+
+			if not member.alive:
+				self.members.remove( member )
+			else:
+				self.has_active = True
+
+
+		for target in self.targets:
+			if target.consumed:
+				self.targets.remove( target )
+				self.targets.append(self.add_new_target())
+
+	def perform_selection( self ):
+		pass
+
+
 
 
 class Member:
@@ -116,32 +158,58 @@ class Member:
 		self.right_track = None
 
 		self.close_to    = None
+		self.alive 		 = True
 
 	def update_member_state( self ):
-		self.process_network()
-		self.rotation += (self.left_track - self.right_track) / self.radius
-		if self.rotation > (2 * math.pi): self.rotation = 0
-		elif self.rotation < 0: self.rotation = (2 * math.pi)
-		self.speed = self.left_track + self.right_track
+
+		if self.energy == 0:
+			self.alive = False
+
+		if self.alive:
+			self.process_network()
+			self.rotation += (self.left_track - self.right_track) / self.radius
+			if self.rotation > (2 * math.pi): self.rotation = 0
+			elif self.rotation < 0: self.rotation = (2 * math.pi)
+			self.speed = self.left_track + self.right_track
+
+			if self.close_to != None:
+				self.distance = Helper.get_distance(self,self.close_to)
+				self.relation = Helper.get_relation_to(self,self.close_to)
+
+			self.energy -= 1
+
 
 	def update_member_position( self ):
-		x_move = self.x + Helper.delta_x( self.rotation, self.speed )
-		y_move = self.y + Helper.delta_y( self.rotation, self.speed )
 
-		if x_move > config.viewport_width: x_move = 0
-		elif x_move < 0: x_move = config.viewport_width
+		if self.alive:
 
-		if y_move > config.viewport_height: y_move = 0
-		elif y_move < 0: y_move = config.viewport_height
+			x_move = self.x + Helper.delta_x( self.rotation, self.speed )
+			y_move = self.y + Helper.delta_y( self.rotation, self.speed )
 
-		self.x, self.y = move_x, move_y
+			if x_move > config.viewport_width: x_move = 0
+			elif x_move < 0: x_move = config.viewport_width
+
+			if y_move > config.viewport_height: y_move = 0
+			elif y_move < 0: y_move = config.viewport_height
+
+			self.x, self.y = x_move, y_move
 	
 	def process_network( self ):
 		self.left_track, self.right_track = self.brain.activate_network(self.get_params())
 
 	def get_params( self ):
-		energy_input = (1-(1/self.energy ))
+		energy_input 	= Helper.make_uniform( self.energy )
+		distance 		= Helper.make_uniform( self.distance )
+		relation		= Helper.make_uniform( self.relation )
 		return [ energy_input, distance, relation ]
+
+	def draw( self, display ):
+		dx = self.x + Helper.delta_x( self.rotation, self.radius )
+		dy = self.y + Helper.delta_y( self.rotation, self.radius )
+		if self.close_to != None and config.debug: pygame.draw.aaline( display, [130,130,130], (Helper.fixed(self.x), Helper.fixed(self.y)), (Helper.fixed(self.close_to.x), Helper.fixed(self.close_to.y)), 1)
+		pygame.draw.circle( display, self.color, (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 0)
+		pygame.draw.circle( display, [0,0,0], (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 1)
+		pygame.draw.aaline( display, [0,0,0], (Helper.fixed(self.x), Helper.fixed(self.y)), (Helper.fixed(dx), Helper.fixed(dy)), 1)
 
 
 class Target:
@@ -152,6 +220,11 @@ class Target:
 		self.consumed 		= False
 		self.x 				= None
 		self.y 				= None
+
+	def draw( self, display):
+		c, s = self.color, [0,0,0]
+		pygame.draw.circle( display, c, (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 0)
+		pygame.draw.circle( display, s, (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 1)
 
 
 class Brain:
@@ -205,10 +278,20 @@ class Helper:
 	def get_distance(a,b): return Helper.slope([a.x,a.y],[b.x,b.y])
 
 	@staticmethod
+	def get_relation_to(a,b): return Helper.relation([a.x,a.y],[b.x,b.y])
+
+	@staticmethod
 	def track_differential(a,b,c): return ((a - b) / c)
 
 	@staticmethod
 	def track_speed(a,b): return a + b
+
+	@staticmethod
+	def make_uniform(a):
+		if a == 0:
+			return 0
+		else:
+			return (1 - (1 / float(a)))
 
 	@staticmethod
 	def slope(a,b):
@@ -230,7 +313,7 @@ class Helper:
 		]
 		for pos in positions:
 			if Helper.slope([x,y],[pos[0],pos[1]]) < (radius + config.intersection_tolerance):
-				Helper.nonintersecting_coordinates(radius, objects)
+				Helper.nonintersecting_coordinates(radius, positions)
 		return [x,y]
 
 
