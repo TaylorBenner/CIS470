@@ -1,10 +1,46 @@
-import config, random, math
-import pybrain
+import config, random, math, pygame, sys
+from pybrain import *
 
 
 class Main:
 	def __init__( self ):
+		pygame.init()
+		self.running        = True
+		self.display        = pygame.display.set_mode(
+								[config.window_width, config.window_height], 
+								pygame.HWSURFACE | pygame.DOUBLEBUF
+							  )
+		self.clock          = pygame.time.Clock()
+		self.font           = pygame.font.SysFont("monospace", 12)
+		self.environment    = Environment()
+
+		self.display.fill((255,255,255))
+		pygame.display.flip()
+
+	def execute( self ):
+		while( self.running ):
+			for event in pygame.event.get():
+				self.events(event)
+			self.update()
+			self.render()
+		self.cleanup()
+
+	def events( self, event ):
+		if event.type == pygame.QUIT:
+			self.running = False
+
+	def update( self ):
 		pass
+
+	def render( self ):
+		pass
+
+	def cleanup( self ):
+		pygame.quit()
+
+
+
+
 
 
 class Environment:
@@ -37,6 +73,24 @@ class Environment:
 
 	def get_positions( self ):
 		return [[obj.x,obj.y] for obj in self.get_objects()]
+
+	def check_collisions( self ):
+		for member in self.members:
+			closest_target = None
+			for target in self.targets:
+				if Helper.is_close( member, target ):
+					if closest_target == None: 
+						closest_target = target
+					else:
+						current_distance = Helper.get_distance( member, target )
+						closest_distance = Helper.get_distance( member, closest_target )
+						if current_distance < closest_distance: 
+							closest_target = target
+					if Helper.is_collided( member, target ):
+						target.consumed = True
+						member.energy 	+= target.energy_amount
+						closest_target = None
+			member.close_to = closest_target
 
 
 class Member:
@@ -71,7 +125,6 @@ class Member:
 		self.speed = self.left_track + self.right_track
 
 	def update_member_position( self ):
-
 		x_move = self.x + Helper.delta_x( self.rotation, self.speed )
 		y_move = self.y + Helper.delta_y( self.rotation, self.speed )
 
@@ -81,23 +134,24 @@ class Member:
 		if y_move > config.viewport_height: y_move = 0
 		elif y_move < 0: y_move = config.viewport_height
 
-		self.x = move_x
-		self.y = move_y
+		self.x, self.y = move_x, move_y
 	
 	def process_network( self ):
 		self.left_track, self.right_track = self.brain.activate_network(self.get_params())
 
 	def get_params( self ):
-		energy_input = ( 1 - ( 1 / self.energy ))
+		energy_input = (1-(1/self.energy ))
 		return [ energy_input, distance, relation ]
 
 
 class Target:
 	def __init__( self ):
-		self.radius = config.target_radius
-		self.color  = config.target_color
-		self.x = None
-		self.y = None
+		self.radius 		= config.target_radius
+		self.color  		= config.target_color
+		self.energy_amount 	= config.energy_gain_amount
+		self.consumed 		= False
+		self.x 				= None
+		self.y 				= None
 
 
 class Brain:
@@ -107,7 +161,7 @@ class Brain:
 	def build_network( self ):
 		net 		 = FeedForwardNetwork()
 		input_layer  = LinearLayer( 3 )
-		logic_layer  = LinearLayer( 1 )
+		logic_layer  = LinearLayer( 5 )
 		output_layer = TanhLayer( 2 )
 		net.addInputModule( input_layer )
 		net.addModule( logic_layer )
@@ -130,19 +184,25 @@ class Database:
 class Helper:
 	
 	@staticmethod
-	def fixed(a): 		return int(round(a))
+	def fixed(a): return int(round(a))
 
 	@staticmethod
-	def delta_x(a,b): 	return math.sin(a) * b
+	def delta_x(a,b): return math.sin(a) * b
 
 	@staticmethod
-	def delta_y(a,b): 	return math.cos(a) * b
+	def delta_y(a,b): return math.cos(a) * b
 
 	@staticmethod
 	def random_color(): return [ random.randint(config.color_min, config.color_max) for i in range(3) ]
 
 	@staticmethod
-	def collided(a,b): 	return Helper.slope([a.x,a.y],[b.x,b.y]) < (a.radius + b.radius)
+	def is_collided(a,b): return Helper.slope([a.x,a.y],[b.x,b.y]) < (a.radius + b.radius)
+
+	@staticmethod
+	def is_close(a,b): return Helper.slope([a.x,a.y],[b.x,b.y]) < (config.member_view_distance)
+
+	@staticmethod
+	def get_distance(a,b): return Helper.slope([a.x,a.y],[b.x,b.y])
 
 	@staticmethod
 	def track_differential(a,b,c): return ((a - b) / c)
@@ -175,3 +235,9 @@ class Helper:
 
 
 
+if __name__ == "__main__" :
+	args = sys.argv
+	if len(args) > 1:
+		DEBUG = args[1]
+	main_window = Main()
+	main_window.execute()
