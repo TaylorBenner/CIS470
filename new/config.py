@@ -4,11 +4,12 @@ window_height  			= 800
 viewport_width  		= 800
 viewport_height 		= 800
 
-color_min 				= 50
+color_min 				= 45
 color_max 				= 255
 
-population_size 		= 20
+population_size 		= 50
 mutation_rate 			= .04
+selection_rate			= .2
 
 member_radius 			= 10
 member_max_energy		= 1000

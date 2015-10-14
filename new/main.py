@@ -1,5 +1,5 @@
 import config, random, math, pygame, sys
-from copy import copy
+from copy import deepcopy
 from pybrain import *
 
 
@@ -63,13 +63,14 @@ class Main:
 		self.display.fill((255,255,255))
 
 		for obj in self.environment.get_objects():
-			obj.draw( self.display, self.font )
+			obj.draw( self.display )
 
 		pygame.draw.rect( self.display, [150,150,150], [config.viewport_width, 0, config.window_width - config.viewport_width, config.viewport_height])
 		pygame.draw.aaline( self.display, [0,0,0], [config.viewport_width, 0], [config.viewport_width, config.viewport_height], 1)
 
 		labels = [
-			self.font.render("Mutation Rate: " + str(config.mutation_rate), 1, [0,0,0] ),
+			self.font.render("Mutation Rate: " + str(config.mutation_rate * 100) + '%', 1, [0,0,0] ),
+			self.font.render("Selection Rate: " + str(config.selection_rate * 100) + '%', 1, [0,0,0] ),
 			self.font.render("Simulation Steps: " + str(self.steps), 1, [0,0,0] ),
 			self.font.render("Generation: " + str(self.environment.generations), 1, [0,0,0] ),
 			self.font.render("Members Alive: " + str(self.environment.remaining), 1, [0,0,0] ),
@@ -77,13 +78,16 @@ class Main:
 		]
 
 		if self.environment.overall_best != None:
-			labels.append(self.font.render("Score: " + str(self.environment.overall_best.score), 1, [0,0,0] ))
-			labels.append(self.font.render("Neurons: " + str(len(self.environment.overall_best.brain.all_neurons())), 1, [0,0,0] ))
+			labels.append(self.font.render("Score   : " + str(self.environment.overall_best.score), 1, [0,0,0] ))
+			labels.append(self.font.render("Neurons : " + str(len(self.environment.overall_best.brain.all_neurons())), 1, [0,0,0] ))
+			labels.append(self.font.render("Food    : " + str(self.environment.overall_best.food), 1, [0,0,0] ))
 
 		padding_increment = 10
-		for label in labels:
+
+		for ind, label in enumerate(labels):
 			self.display.blit( label, (config.viewport_width + config.panel_padding, padding_increment))
-			padding_increment += 10
+			if ind == 4 or ind == 1: padding_increment += 20
+			else: padding_increment += 10
 
 		pygame.display.flip()
 
@@ -206,7 +210,8 @@ class Environment:
 
 	def perform_selection( self ):
 		self.members.sort( key = lambda member: member.score, reverse=True )
-		self.parents = self.members[:2]
+		parent_count = int(float(config.population_size) * config.selection_rate)
+		self.parents = self.members[:parent_count]
 		self.members = []
 
 	def perform_crossover( self ):
@@ -216,22 +221,27 @@ class Environment:
 				child = self.add_new_member()
 
 				if random.random() >= config.mutation_rate:
-					child.brain = copy(parent.brain)
+					child.brain = deepcopy(parent.brain)
 					child.brain.network.sortModules()
 					child.color = parent.color
 
 				self.members.append( child )
 
+		for remaining in range(config.population_size - len(self.members)):
+			child = self.add_new_member()
+			self.members.append( child )
+
+
 	def perform_mutation( self ):
 		for member in self.members:
 			mutations = 0
-			if random.random() <= config.mutation_rate: 
-				member.brain.add_random_neuron()
-				mutations += 1
+			# if random.random() <= config.mutation_rate:
+			# 	member.brain.add_random_neuron()
+			# 	mutations += 1
 
-			if random.random() <= config.mutation_rate: 
-				member.brain.add_random_connection()
-				mutations += 1
+			# if random.random() <= config.mutation_rate:
+			# 	member.brain.add_random_connection()
+			# 	mutations += 1
 
 			if random.random() <= config.mutation_rate:
 				member.brain.randomize_connection()
@@ -270,6 +280,8 @@ class Member:
 		self.score       = 0
 		self.norm_score  = 0.0
 		self.mutations   = 0
+
+		self.error_count = 0
 
 		self.born 		 = pygame.time.get_ticks()
 		self.died		 = None
@@ -311,26 +323,40 @@ class Member:
 			self.x, self.y = x_move, y_move
 	
 	def process_network( self ):
-		self.left_track, self.right_track = self.brain.activate_network(self.get_params())
+		if self.error_count < 10:
+			try:
+				self.left_track, self.right_track = self.brain.activate_network(self.get_params())
+			except:
+				self.brain.network.sortModules()
+				self.error_count += 1
+				self.process_network()
+		else:
+			self.left_track, self.right_track = [0,0]
+			self.color = [20,20,20]
 
 	def get_params( self ):
-		energy_input 	= Helper.make_uniform( self.energy )
-		distance 		= Helper.make_uniform( self.distance )
-		relation		= Helper.make_uniform( self.relation )
+		energy_input 	= Helper.make_uniform(self.energy, 1)
+		distance 		= Helper.make_uniform(self.distance, 2)
+		relation		= Helper.make_uniform(self.relation, 2)
 		return [ energy_input, distance, relation ]
 
-	def draw( self, display, font ):
+	def draw( self, display ):
 		if self.alive:
 			dx = self.x + Helper.delta_x( self.rotation, self.radius )
 			dy = self.y + Helper.delta_y( self.rotation, self.radius )
-			if self.close_to != None and config.debug: pygame.draw.aaline( display, [130,130,130], (Helper.fixed(self.x), Helper.fixed(self.y)), (Helper.fixed(self.close_to.x), Helper.fixed(self.close_to.y)), 1)
+			# if self.close_to != None and config.debug: pygame.draw.aaline( display, [130,130,130], (Helper.fixed(self.x), Helper.fixed(self.y)), (Helper.fixed(self.close_to.x), Helper.fixed(self.close_to.y)), 1)
 			pygame.draw.circle( display, self.color, (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 0)
 			pygame.draw.circle( display, [0,0,0], (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 1)
 			pygame.draw.aaline( display, [0,0,0], (Helper.fixed(self.x), Helper.fixed(self.y)), (Helper.fixed(dx), Helper.fixed(dy)), 1)
 
 			if config.debug:
+				font = pygame.font.SysFont("monospace", 10)
+
 				label = font.render(str(self.mutations), 1, [0,0,0] )
-				display.blit( label, (self.x-4, self.y+10))
+				display.blit( label, (self.x - 6, self.y + 10))
+
+				label = font.render(str(self.food), 1, [0,0,0] )
+				display.blit( label, (self.x, self.y + 10))
 
 
 
@@ -343,7 +369,7 @@ class Target:
 		self.x 				= None
 		self.y 				= None
 
-	def draw( self, display, font ):
+	def draw( self, display ):
 		c, s = self.color, [0,0,0]
 		pygame.draw.circle( display, c, (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 0)
 		pygame.draw.circle( display, s, (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 1)
@@ -386,9 +412,8 @@ class Brain:
 		self.network.addConnection( c )
 
 	def add_random_neuron( self ):
-		n1 = random.choice([SigmoidLayer(1), LinearLayer(1), TanhLayer(1), GaussianLayer(1), BiasUnit()])
+		n1 = random.choice([SigmoidLayer(1), LinearLayer(1), TanhLayer(1), GaussianLayer(1)])
 		n2 = random.choice(self.all_neurons())
-
 		self.add_logic( n1 )
 		c1 = FullConnection(n1,n2)
 		self.add_connection(c1)
@@ -411,7 +436,6 @@ class Brain:
 			n1 = random.choice(self.all_neurons())
 			n2 = random.choice(self.all_neurons())
 			c1 = FullConnection(n1,n2)
-
 			if n1.name is not n2.name: 
 				self.add_connection(c1)	
 			self.network.sortModules()
@@ -429,13 +453,13 @@ class Brain:
 
 		self.network = FeedForwardNetwork()
 
-		self.add_input(self.tanh_neuron())
-		self.add_input(self.tanh_neuron())
-		self.add_input(self.tanh_neuron())
+		self.add_input(self.sig_neuron())
+		self.add_input(self.sig_neuron())
+		self.add_input(self.sig_neuron())
 
-		self.add_logic(self.linear_neuron())
-		self.add_logic(self.linear_neuron())
-		self.add_logic(self.linear_neuron())
+		self.add_logic(self.sig_neuron())
+		self.add_logic(self.sig_neuron())
+		self.add_logic(self.sig_neuron())
 
 		self.add_output(self.tanh_neuron())
 		self.add_output(self.tanh_neuron())
@@ -506,11 +530,17 @@ class Helper:
 	def track_speed(a,b): return a + b
 
 	@staticmethod
-	def make_uniform(a):
-		if a == 0:
-			return 0
-		else:
-			return (1 - (1 / float(a)))
+	def make_uniform(a, b):
+		if b == 1:
+			if a == 0:
+				return 0
+			else:
+				return (1 - (1 / float(a)))
+		elif b == 2:
+			if a == 0:
+				return 0
+			else:
+				return (1 / float(a))
 
 	@staticmethod
 	def slope(a,b):
