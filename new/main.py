@@ -1,4 +1,5 @@
 import config, random, math, pygame, sys
+from copy import copy
 from pybrain import *
 
 
@@ -14,6 +15,8 @@ class Main:
 		self.clock          = pygame.time.Clock()
 		self.font           = pygame.font.SysFont("monospace", 12)
 		self.environment    = Environment()
+		self.steps			= 0
+		self.sim_start		= pygame.time.get_ticks()
 
 		self.display.fill((255,255,255))
 		pygame.display.flip()
@@ -21,13 +24,22 @@ class Main:
 	def execute( self ):
 		while( self.running ):
 
-			if self.will_render:
+			if not self.will_render:
 				self.clock.tick(60)
 
 			for event in pygame.event.get():
 				self.events(event)
+
+			keys = pygame.key.get_pressed() 
+			if keys[pygame.K_SPACE]:
+				self.will_render = False
+			else:
+				self.will_render = True
+
 			self.update()
 			self.render()
+			self.steps += 1
+
 		self.cleanup()
 
 	def events( self, event ):
@@ -38,18 +50,42 @@ class Main:
 
 		self.environment.update_all()
 		if self.environment.has_active == False:
+
+			self.environment.perform_scoring()
 			self.environment.perform_selection()
+			self.environment.perform_crossover()
+			self.environment.perform_mutation()
+
+			self.environment.generations += 1
 
 	def render( self ):
-		if self.will_render:
-			self.display.fill((255,255,255))
-			for obj in self.environment.get_objects():
-				obj.draw( self.display )
 
-			pygame.draw.rect( self.display, [150,150,150], [config.viewport_width, 0, config.window_width - config.viewport_width, config.viewport_height])
-			pygame.draw.aaline( self.display, [0,0,0], [config.viewport_width, 0], [config.viewport_width, config.viewport_height], 1)
+		self.display.fill((255,255,255))
 
-			pygame.display.flip()
+		for obj in self.environment.get_objects():
+			obj.draw( self.display, self.font )
+
+		pygame.draw.rect( self.display, [150,150,150], [config.viewport_width, 0, config.window_width - config.viewport_width, config.viewport_height])
+		pygame.draw.aaline( self.display, [0,0,0], [config.viewport_width, 0], [config.viewport_width, config.viewport_height], 1)
+
+		labels = [
+			self.font.render("Mutation Rate: " + str(config.mutation_rate), 1, [0,0,0] ),
+			self.font.render("Simulation Steps: " + str(self.steps), 1, [0,0,0] ),
+			self.font.render("Generation: " + str(self.environment.generations), 1, [0,0,0] ),
+			self.font.render("Members Alive: " + str(self.environment.remaining), 1, [0,0,0] ),
+			self.font.render("Overall Best:", 1, [0,0,0] )
+		]
+
+		if self.environment.overall_best != None:
+			labels.append(self.font.render("Score: " + str(self.environment.overall_best.score), 1, [0,0,0] ))
+			labels.append(self.font.render("Neurons: " + str(len(self.environment.overall_best.brain.all_neurons())), 1, [0,0,0] ))
+
+		padding_increment = 10
+		for label in labels:
+			self.display.blit( label, (config.viewport_width + config.panel_padding, padding_increment))
+			padding_increment += 10
+
+		pygame.display.flip()
 
 	def cleanup( self ):
 		pygame.quit()
@@ -60,14 +96,20 @@ class Environment:
 	def __init__( self ):
 		
 		# init placeholder
-		self.members 	= []
-		self.targets 	= []
+		self.members 	  = []
+		self.targets 	  = []
+		self.parents      = []
+		self.current_best = None
+		self.overall_best = None
 
 		# init members and targets
-		self.members 	= [ self.add_new_member() for i in range(config.population_size) ]
-		self.targets 	= [ self.add_new_target() for i in range(config.target_count) ]
+		self.members 	 = [ self.add_new_member() for i in range(config.population_size) ]
+		self.targets 	 = [ self.add_new_target() for i in range(config.target_count) ]
 
-		self.has_active = False
+		self.has_active  = False
+		self.generations = 1
+		self.remaining   = 0
+
 
 	def add_new_member( self ):
 		new_member 		= Member()
@@ -105,22 +147,25 @@ class Environment:
 						closest_target = target
 
 					if Helper.is_collided( member, target ):
-						target.consumed = True
+						target.consumed  = True
 						member.energy 	+= target.energy_amount
-						closest_target = None
+						member.food 	+= 1
+						closest_target 	 = None
 
 			member.close_to = closest_target
 
 	def update_all( self ):
+
+		number_alive 	= 0
+		self.has_active = False
 
 		for member in self.members:
 			member.update_member_state()
 			member.update_member_position()
 			self.check_collisions( member )
 
-			if not member.alive:
-				self.members.remove( member )
-			else:
+			if member.alive:
+				number_alive += 1
 				self.has_active = True
 
 
@@ -129,8 +174,70 @@ class Environment:
 				self.targets.remove( target )
 				self.targets.append(self.add_new_target())
 
+		self.remaining = number_alive
+
+	def perform_scoring( self ):
+
+		total_score 		= 0.0
+		total_norm_score 	= 0.0
+
+		for member in self.members:
+			member.score = (member.lifespan / 1000) * member.food
+			if member.score == 0 : member.score = 1
+			total_score += member.score
+
+			if self.current_best == None:
+				self.current_best = member
+
+			if member.score > self.current_best.score:
+				self.current_best = member
+
+		for member in self.members:
+			member.norm_score = member.score / total_score
+			total_norm_score += member.norm_score
+
+
+		if self.overall_best == None:
+			self.overall_best = self.current_best
+
+		elif self.current_best.score > self.overall_best.score:
+			self.overall_best = self.current_best
+
+
 	def perform_selection( self ):
-		pass
+		self.members.sort( key = lambda member: member.score, reverse=True )
+		self.parents = self.members[:2]
+		self.members = []
+
+	def perform_crossover( self ):
+
+		for parent in self.parents:
+			for i in range(config.population_size / len(self.parents)):
+				child = self.add_new_member()
+
+				if random.random() >= config.mutation_rate:
+					child.brain = copy(parent.brain)
+					child.brain.network.sortModules()
+					child.color = parent.color
+
+				self.members.append( child )
+
+	def perform_mutation( self ):
+		for member in self.members:
+			mutations = 0
+			if random.random() <= config.mutation_rate: 
+				member.brain.add_random_neuron()
+				mutations += 1
+
+			if random.random() <= config.mutation_rate: 
+				member.brain.add_random_connection()
+				mutations += 1
+
+			if random.random() <= config.mutation_rate:
+				member.brain.randomize_connection()
+				mutations += 1
+
+			member.mutations = mutations
 
 
 
@@ -159,11 +266,20 @@ class Member:
 
 		self.close_to    = None
 		self.alive 		 = True
+		self.food 		 = 0
+		self.score       = 0
+		self.norm_score  = 0.0
+		self.mutations   = 0
+
+		self.born 		 = pygame.time.get_ticks()
+		self.died		 = None
 
 	def update_member_state( self ):
 
-		if self.energy == 0:
-			self.alive = False
+		if self.energy == 0 or self.energy > 5000:
+			self.alive    = False
+			self.died  	  = pygame.time.get_ticks()
+			self.lifespan = self.died - self.born
 
 		if self.alive:
 			self.process_network()
@@ -176,7 +292,7 @@ class Member:
 				self.distance = Helper.get_distance(self,self.close_to)
 				self.relation = Helper.get_relation_to(self,self.close_to)
 
-			self.energy -= 1
+			self.energy -= config.energy_loss
 
 
 	def update_member_position( self ):
@@ -203,13 +319,19 @@ class Member:
 		relation		= Helper.make_uniform( self.relation )
 		return [ energy_input, distance, relation ]
 
-	def draw( self, display ):
-		dx = self.x + Helper.delta_x( self.rotation, self.radius )
-		dy = self.y + Helper.delta_y( self.rotation, self.radius )
-		if self.close_to != None and config.debug: pygame.draw.aaline( display, [130,130,130], (Helper.fixed(self.x), Helper.fixed(self.y)), (Helper.fixed(self.close_to.x), Helper.fixed(self.close_to.y)), 1)
-		pygame.draw.circle( display, self.color, (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 0)
-		pygame.draw.circle( display, [0,0,0], (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 1)
-		pygame.draw.aaline( display, [0,0,0], (Helper.fixed(self.x), Helper.fixed(self.y)), (Helper.fixed(dx), Helper.fixed(dy)), 1)
+	def draw( self, display, font ):
+		if self.alive:
+			dx = self.x + Helper.delta_x( self.rotation, self.radius )
+			dy = self.y + Helper.delta_y( self.rotation, self.radius )
+			if self.close_to != None and config.debug: pygame.draw.aaline( display, [130,130,130], (Helper.fixed(self.x), Helper.fixed(self.y)), (Helper.fixed(self.close_to.x), Helper.fixed(self.close_to.y)), 1)
+			pygame.draw.circle( display, self.color, (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 0)
+			pygame.draw.circle( display, [0,0,0], (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 1)
+			pygame.draw.aaline( display, [0,0,0], (Helper.fixed(self.x), Helper.fixed(self.y)), (Helper.fixed(dx), Helper.fixed(dy)), 1)
+
+			if config.debug:
+				label = font.render(str(self.mutations), 1, [0,0,0] )
+				display.blit( label, (self.x-4, self.y+10))
+
 
 
 class Target:
@@ -221,7 +343,7 @@ class Target:
 		self.x 				= None
 		self.y 				= None
 
-	def draw( self, display):
+	def draw( self, display, font ):
 		c, s = self.color, [0,0,0]
 		pygame.draw.circle( display, c, (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 0)
 		pygame.draw.circle( display, s, (Helper.fixed(self.x), Helper.fixed(self.y)), self.radius, 1)
@@ -229,20 +351,117 @@ class Target:
 
 class Brain:
 	def __init__( self ):
-		self.network = self.build_network()
+
+		self.network 			= []
+		self.input_neurons		= []
+		self.logic_neurons		= []
+		self.output_neurons		= []
+		self.connections		= []
+
+		self.build_network()
+
+	def sig_neuron( self ):
+		return SigmoidLayer(1)
+
+	def tanh_neuron( self ):
+		return TanhLayer(1)
+
+	def linear_neuron( self ):
+		return LinearLayer(1)
+
+	def add_input( self, n ):
+		self.input_neurons.append( n )
+		self.network.addInputModule( n )
+
+	def add_output( self, n ):
+		self.output_neurons.append( n )
+		self.network.addOutputModule( n )
+
+	def add_logic( self, n ):
+		self.logic_neurons.append( n )
+		self.network.addModule( n )
+
+	def add_connection( self, c ):
+		self.connections.append( c )
+		self.network.addConnection( c )
+
+	def add_random_neuron( self ):
+		n1 = random.choice([SigmoidLayer(1), LinearLayer(1), TanhLayer(1), GaussianLayer(1), BiasUnit()])
+		n2 = random.choice(self.all_neurons())
+
+		self.add_logic( n1 )
+		c1 = FullConnection(n1,n2)
+		self.add_connection(c1)
+		self.network.sortModules()
+
+	def all_neurons( self ):
+		return self.input_neurons + self.logic_neurons + self.output_neurons
+
+	def remove_connection( self, c ):
+		self.connections.remove( c )
+		for m in self.network.modules:
+			for v in self.network.connections[m]:
+				if v is c:
+					self.network.connections[m].remove(v)
+		self.network.sortModules()
+
+	def add_random_connection( self ):
+		c1 = None
+		try:
+			n1 = random.choice(self.all_neurons())
+			n2 = random.choice(self.all_neurons())
+			c1 = FullConnection(n1,n2)
+
+			if n1.name is not n2.name: 
+				self.add_connection(c1)	
+			self.network.sortModules()
+		except: 
+			if c1 != None:
+				self.remove_connection(c1)
+
+	def randomize_connection( self, c = None ):
+		if c == None:
+			m = random.choice( self.logic_neurons )
+			c = random.choice( self.network.connections[m] )
+		c.randomize()
 
 	def build_network( self ):
-		net 		 = FeedForwardNetwork()
-		input_layer  = LinearLayer( 3 )
-		logic_layer  = LinearLayer( 5 )
-		output_layer = TanhLayer( 2 )
-		net.addInputModule( input_layer )
-		net.addModule( logic_layer )
-		net.addOutputModule( output_layer )
-		net.addConnection(FullConnection( input_layer, logic_layer ))
-		net.addConnection(FullConnection( logic_layer, output_layer ))
-		net.sortModules()
-		return net
+
+		self.network = FeedForwardNetwork()
+
+		self.add_input(self.tanh_neuron())
+		self.add_input(self.tanh_neuron())
+		self.add_input(self.tanh_neuron())
+
+		self.add_logic(self.linear_neuron())
+		self.add_logic(self.linear_neuron())
+		self.add_logic(self.linear_neuron())
+
+		self.add_output(self.tanh_neuron())
+		self.add_output(self.tanh_neuron())
+
+		self.add_connection(FullConnection(self.input_neurons[0], self.logic_neurons[0]))
+		self.add_connection(FullConnection(self.input_neurons[1], self.logic_neurons[0]))
+		self.add_connection(FullConnection(self.input_neurons[2], self.logic_neurons[0]))
+
+		self.add_connection(FullConnection(self.input_neurons[0], self.logic_neurons[1]))
+		self.add_connection(FullConnection(self.input_neurons[1], self.logic_neurons[1]))
+		self.add_connection(FullConnection(self.input_neurons[2], self.logic_neurons[1]))
+
+		self.add_connection(FullConnection(self.input_neurons[0], self.logic_neurons[2]))
+		self.add_connection(FullConnection(self.input_neurons[1], self.logic_neurons[2]))
+		self.add_connection(FullConnection(self.input_neurons[2], self.logic_neurons[2]))
+
+		self.add_connection(FullConnection(self.logic_neurons[0], self.output_neurons[0]))
+		self.add_connection(FullConnection(self.logic_neurons[0], self.output_neurons[1]))
+
+		self.add_connection(FullConnection(self.logic_neurons[1], self.output_neurons[0]))
+		self.add_connection(FullConnection(self.logic_neurons[1], self.output_neurons[1]))
+
+		self.add_connection(FullConnection(self.logic_neurons[2], self.output_neurons[0]))
+		self.add_connection(FullConnection(self.logic_neurons[2], self.output_neurons[1]))
+
+		self.network.sortModules()
 
 	def activate_network( self, params ):
 		if params:
