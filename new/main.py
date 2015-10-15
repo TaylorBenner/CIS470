@@ -1,4 +1,4 @@
-import config, random, math, pygame, sys
+import config, random, math, pygame, sys, shelve, time
 from copy import deepcopy
 from pybrain import *
 
@@ -15,6 +15,7 @@ class Main:
 		self.clock          = pygame.time.Clock()
 		self.font           = pygame.font.SysFont("monospace", 12)
 		self.environment    = Environment()
+		self.database 		= Database()
 		self.steps			= 0
 		self.sim_start		= pygame.time.get_ticks()
 
@@ -52,6 +53,9 @@ class Main:
 		if self.environment.has_active == False:
 
 			self.environment.perform_scoring()
+
+			self.database.save_population( self.environment.members )
+
 			self.environment.perform_selection()
 			self.environment.perform_crossover()
 			self.environment.perform_mutation()
@@ -98,35 +102,42 @@ class Main:
 
 class Environment:
 	def __init__( self ):
+
+		self.has_active  = False
+		self.generations = 1
+		self.remaining   = 0
 		
 		# init placeholder
 		self.members 	  = []
 		self.targets 	  = []
 		self.parents      = []
+
 		self.current_best = None
 		self.overall_best = None
+
+		self.member_count = 0
 
 		# init members and targets
 		self.members 	 = [ self.add_new_member() for i in range(config.population_size) ]
 		self.targets 	 = [ self.add_new_target() for i in range(config.target_count) ]
 
-		self.has_active  = False
-		self.generations = 1
-		self.remaining   = 0
 
 
 	def add_new_member( self ):
-		new_member 		= Member()
-		x,y 			= Helper.nonintersecting_coordinates( new_member.radius, self.get_positions() )
-		new_member.x  	= x
-		new_member.y 	= y
+		new_member 				= Member()
+		x,y 					= Helper.nonintersecting_coordinates( new_member.radius, self.get_positions() )
+		new_member.x  			= x
+		new_member.y 			= y
+		new_member.generation 	= self.generations
+		self.member_count		+= 1
+		new_member.member_num	= self.member_count
 		return new_member
 
 	def add_new_target( self ):
-		new_target 		= Target()
-		x,y 			= Helper.nonintersecting_coordinates( new_target.radius, self.get_positions() )
-		new_target.x  	= x
-		new_target.y 	= y
+		new_target 				= Target()
+		x,y 					= Helper.nonintersecting_coordinates( new_target.radius, self.get_positions() )
+		new_target.x  			= x
+		new_target.y 			= y
 		return new_target
 
 	def get_objects( self ):
@@ -235,13 +246,14 @@ class Environment:
 	def perform_mutation( self ):
 		for member in self.members:
 			mutations = 0
-			# if random.random() <= config.mutation_rate:
-			# 	member.brain.add_random_neuron()
-			# 	mutations += 1
+			
+			if random.random() <= config.mutation_rate:
+				member.brain.add_random_neuron()
+				mutations += 1
 
-			# if random.random() <= config.mutation_rate:
-			# 	member.brain.add_random_connection()
-			# 	mutations += 1
+			if random.random() <= config.mutation_rate:
+				member.brain.add_random_connection()
+				mutations += 1
 
 			if random.random() <= config.mutation_rate:
 				member.brain.randomize_connection()
@@ -285,6 +297,9 @@ class Member:
 
 		self.born 		 = pygame.time.get_ticks()
 		self.died		 = None
+
+		self.generation  = 0
+		self.member_num  = 0
 
 	def update_member_state( self ):
 
@@ -493,8 +508,26 @@ class Brain:
 
 
 class Database:
-	def __init__( self ):
-		pass
+	def __init__( self ):		
+		self.filename = config.database_filename
+		self.database = shelve.open( self.filename )
+		
+
+	def generate_key( self, member ):
+		return "%i-%i-%i-%i" % (member.member_num, member.generation, member.score, time.time())
+
+
+	def save_population( self, members ):
+		for member in members:
+			key = self.generate_key( member )
+			if key not in self.database:
+				self.database[key] = {
+					"food"		: member.food,
+					"weights"	: member.brain.network.params,
+					"lifespan"	: member.lifespan,
+					"mutations" : member.mutations
+				}
+
 
 
 class Helper:

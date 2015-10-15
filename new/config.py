@@ -25,3 +25,5 @@ energy_loss				= 1
 intersection_tolerance 	= 20
 debug					= True
 panel_padding			= 15
+
+database_filename       = "se_database.db"
