@@ -100,11 +100,3 @@ class Database:
 		plt.show()
 
 	def get_mean( self, numbers ): return sum(numbers) / float(len(numbers))
-
-
-
-db = Database()
-db.graph_optimization()
-
-
-

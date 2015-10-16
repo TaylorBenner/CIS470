@@ -97,6 +97,7 @@ class Main:
 		pygame.display.flip()
 
 	def cleanup( self ):
+		self.database.graph_optimization()
 		pygame.quit()
 		
 
