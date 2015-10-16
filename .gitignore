@@ -42,11 +42,9 @@ Network Trash Folder
 Temporary Items
 .apdisk
 documentation/~$CIS470 - Team F - Week 1 Time Card.xlsx
-
 config.pyc
 project.pyc
 se_database.db
-
 classes/__init__.pyc
 classes/brain.pyc
 classes/database.pyc
@@ -54,7 +52,6 @@ classes/environment.pyc
 classes/helper.pyc
 classes/member.pyc
 classes/target.pyc
-
 tests/alltests.pyc
 tests/environmenttest.pyc
 tests/membertest.pyc
