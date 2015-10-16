@@ -114,7 +114,3 @@ class MemberTest( unittest.TestCase ):
 
 	def tearDown( self ):
 		self.member = None
-
-
-runner = unittest.TextTestRunner()
-runner.run(MemberTest.buildSuite())

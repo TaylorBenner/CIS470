@@ -7,7 +7,7 @@ viewport_height 		= 800
 color_min 				= 45
 color_max 				= 255
 
-population_size 		= 10
+population_size 		= 20
 mutation_rate 			= .04
 selection_rate			= .2
 

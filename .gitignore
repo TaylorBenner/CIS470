@@ -46,6 +46,7 @@ documentation/~$CIS470 - Team F - Week 1 Time Card.xlsx
 config.pyc
 project.pyc
 se_database.db
+
 classes/__init__.pyc
 classes/brain.pyc
 classes/database.pyc
@@ -53,3 +54,9 @@ classes/environment.pyc
 classes/helper.pyc
 classes/member.pyc
 classes/target.pyc
+
+test/alltests.pyc
+test/environmenttest.pyc
+test/membertest.pyc
+test/braintest.pyc
+test/helpertest.pyc

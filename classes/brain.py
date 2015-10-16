@@ -68,6 +68,7 @@ class Brain:
 		except: 
 			if c1 != None:
 				self.remove_connection(c1)
+				self.add_random_connection()
 
 	def randomize_connection( self, c = None ):
 		if c == None:
@@ -79,13 +80,13 @@ class Brain:
 
 		self.network = FeedForwardNetwork()
 
-		self.add_input(self.sig_neuron())
-		self.add_input(self.sig_neuron())
-		self.add_input(self.sig_neuron())
+		self.add_input(self.tanh_neuron())
+		self.add_input(self.tanh_neuron())
+		self.add_input(self.tanh_neuron())
 
-		self.add_logic(self.sig_neuron())
-		self.add_logic(self.sig_neuron())
-		self.add_logic(self.sig_neuron())
+		self.add_logic(self.linear_neuron())
+		self.add_logic(self.linear_neuron())
+		self.add_logic(self.linear_neuron())
 
 		self.add_output(self.tanh_neuron())
 		self.add_output(self.tanh_neuron())

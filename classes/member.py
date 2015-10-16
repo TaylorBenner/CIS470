@@ -93,7 +93,7 @@ class Member:
 	def get_params( self ):
 		energy_input 	= Helper.make_uniform(self.energy, 1)
 		distance 		= Helper.make_uniform(self.distance, 2)
-		relation		= Helper.make_uniform(math.degrees(self.relation), 2)
+		relation		= Helper.make_uniform(self.relation, 2)
 		return [ energy_input, distance, relation ]
 
 	def draw( self, display ):

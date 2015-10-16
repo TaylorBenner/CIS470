@@ -102,7 +102,3 @@ class EnvironmentTest( unittest.TestCase ):
 
 	def tearDown( self ):
 		self.environment = None
-
-
-runner = unittest.TextTestRunner()
-runner.run(EnvironmentTest.buildSuite())
