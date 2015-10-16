@@ -55,8 +55,8 @@ classes/helper.pyc
 classes/member.pyc
 classes/target.pyc
 
-test/alltests.pyc
-test/environmenttest.pyc
-test/membertest.pyc
-test/braintest.pyc
-test/helpertest.pyc
+tests/alltests.pyc
+tests/environmenttest.pyc
+tests/membertest.pyc
+tests/braintest.pyc
+tests/helpertest.pyc
