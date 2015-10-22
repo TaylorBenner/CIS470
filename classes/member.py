@@ -42,7 +42,7 @@ class Member:
 
 	def update_member_state( self ):
 
-		if self.energy == 0 or self.energy > 5000:
+		if self.energy == 0 or self.energy > self.max_energy * 2:
 			self.alive    = False
 			self.died  	  = pygame.time.get_ticks()
 			self.lifespan = self.died - self.born

@@ -42,6 +42,10 @@ class Main:
 			self.render()
 			self.steps += 1
 
+			if self.environment.generations == config.maximum_generations:
+				self.running = False
+
+
 		self.cleanup()
 
 	def events( self, event ):
@@ -98,6 +102,7 @@ class Main:
 
 	def cleanup( self ):
 		self.database.graph_optimization()
+		self.database.generate_csv()
 		pygame.quit()
 		
 

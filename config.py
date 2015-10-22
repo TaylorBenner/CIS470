@@ -7,9 +7,10 @@ viewport_height 		= 800
 color_min 				= 45
 color_max 				= 255
 
-population_size 		= 30
-mutation_rate 			= .04
+population_size 		= 15
+mutation_rate 			= .005
 selection_rate			= .2
+maximum_generations     = 50
 
 member_radius 			= 10
 member_max_energy		= 1000

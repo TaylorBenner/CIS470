@@ -8,7 +8,7 @@ import config
 class Database:
 	def __init__( self ):		
 		self.filename = config.database_filename
-		self.database = shelve.open( "../" + self.filename )
+		self.database = shelve.open( self.filename )
 		
 
 	def generate_key( self, member ):
@@ -21,9 +21,9 @@ class Database:
 			if key not in self.database:
 				self.database[key] = {
 					"food"		: member.food,
-					"weights"	: member.brain.network.params,
 					"lifespan"	: member.lifespan,
-					"mutations" : member.mutations
+					"mutations" : member.mutations,
+					"weights"	: member.brain.network.params
 				}
 
 	def get_by_key( self, key ):
@@ -82,6 +82,20 @@ class Database:
 				max_gen = gen
 		return max_gen
 
+	def get_by_mutations( self, mutations ):
+		member_list = []
+		for key in self.get_all_keys():
+			if int(self.database[key]['mutations']) == mutations:
+				member_list.append([key,self.database[key]])
+		return member_list
+
+	def get_by_food( self, food ):
+		member_list = []
+		for key in self.get_all_keys():
+			if int(self.database[key]['food']) == food:
+				member_list.append([key,self.database[key]])
+		return member_list
+
 
 	def graph_optimization( self ):
 		plt.figure(1)
@@ -99,4 +113,24 @@ class Database:
 		plt.xlabel("Generation")
 		plt.show()
 
-	def get_mean( self, numbers ): return sum(numbers) / float(len(numbers))
+	def generate_csv( self ):
+		import csv
+
+		keys = self.get_all_keys()
+		filename = str(config.population_size) + "-" + str(config.mutation_rate) + "-" + str(config.selection_rate) + '-output.csv'
+
+		csvfile = open(filename, 'wb+')
+		writer = csv.writer(csvfile, delimiter=',')
+		writer.writerow(["Member", "Score", "Generation", "Food", "Lifespan", "Mutations", "Weights"])
+
+		for key in keys:
+			value = self.database[key]
+			writer.writerow([
+				self.get_member_num(key),
+				self.get_member_score(key),
+				self.get_member_generation(key),
+				value['food'],
+				value['lifespan'],
+				value['mutations'],
+				value['weights']
+			])
